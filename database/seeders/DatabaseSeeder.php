@@ -12,14 +12,22 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Dev/demo login only — rotate or remove before this touches production.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::updateOrCreate(
+            ['username' => 'superadmin'],
+            [
+                'role' => 'sa',
+                'name' => 'System Administrator',
+                'email' => 'sa@demo.pk',
+                'password' => '1234',
+                'active' => true,
+                'bio_enrolled' => true,
+                'first_login' => false,
+            ]
+        );
     }
 }

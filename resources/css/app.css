@@ -1,11 +1,168 @@
-@import 'tailwindcss';
-
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
+@import "tailwindcss";
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* Punjab Govt identity */
+    --color-primary-50: #E7F3EC;
+    --color-primary-100: #C6E2D2;
+    --color-primary-400: #14803F;
+    --color-primary-500: #0B6D3A;
+    --color-primary-600: #095C31;
+    --color-primary-700: #084F2A;
+    --color-primary-800: #06401F;
+
+    --color-accent-100: #FBF3DC;
+    --color-accent-400: #DDB53A;
+    --color-accent-500: #C9A227;
+    --color-accent-600: #A9871E;
+
+    /* Semantic status colors (case workflow, alerts) */
+    --color-info: #2563EB;
+    --color-warning: #D97706;
+    --color-danger: #DC2626;
+    --color-success: #0B6D3A;
+
+    /* Neutrals */
+    --color-surface: #FFFFFF;
+    --color-surface-subtle: #F5F7F6;
+    --color-border: #E2E8E4;
+    --color-ink: #0F172A;
+    --color-ink-muted: #52616B;
+    --color-ink-faint: #94A3A0;
+}
+
+body {
+    @apply bg-surface-subtle text-ink antialiased;
+}
+
+/* DataTables reskin — matches the Punjab Govt palette instead of the library default look. */
+.uc-datatable {
+    font-family: var(--font-sans);
+}
+
+.uc-datatable .dataTables_wrapper {
+    padding: 0;
+}
+
+.uc-datatable .dataTables_filter,
+.uc-datatable .dataTables_length {
+    padding: 14px 16px;
+}
+
+.uc-datatable .dataTables_filter label,
+.uc-datatable .dataTables_length label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+}
+
+.uc-datatable .dataTables_filter input,
+.uc-datatable .dataTables_length select {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--color-ink);
+    background: var(--color-surface);
+    outline: none;
+}
+
+.uc-datatable .dataTables_filter input:focus,
+.uc-datatable .dataTables_length select:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.uc-datatable table.dataTable {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+}
+
+.uc-datatable table.dataTable thead th {
+    background: var(--color-surface-subtle);
+    border-bottom: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-ink-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 12px 16px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.uc-datatable table.dataTable thead th.dt-orderable-asc:hover,
+.uc-datatable table.dataTable thead th.dt-orderable-desc:hover {
+    color: var(--color-ink);
+    cursor: pointer;
+}
+
+.uc-datatable table.dataTable tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-ink);
+    vertical-align: middle;
+}
+
+.uc-datatable table.dataTable tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.uc-datatable table.dataTable tbody tr:hover td {
+    background: var(--color-surface-subtle);
+}
+
+.uc-datatable table.dataTable tbody tr.odd,
+.uc-datatable table.dataTable tbody tr.even {
+    background: var(--color-surface);
+}
+
+.uc-datatable .dataTables_info {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--color-ink-faint);
+}
+
+.uc-datatable .dataTables_paginate {
+    padding: 10px 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.uc-datatable .dataTables_paginate .paginate_button {
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+}
+
+.uc-datatable .dataTables_paginate .paginate_button:hover:not(.disabled):not(.current) {
+    background: var(--color-primary-50);
+    color: var(--color-primary-600);
+}
+
+.uc-datatable .dataTables_paginate .paginate_button.current {
+    background: var(--color-primary-500);
+    color: #fff;
+    font-weight: 600;
+}
+
+.uc-datatable .dataTables_paginate .paginate_button.disabled {
+    color: var(--color-ink-faint);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.uc-datatable .dt-empty {
+    padding: 48px 16px !important;
+    text-align: center;
+    color: var(--color-ink-muted);
 }
