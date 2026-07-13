@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import { Badge, Button, Card, ErrorText, Field, FullScreenSpinner, Modal, Select, Textarea, TextInput } from '../../components/ui';
 
 const STATUS_TONE = {
@@ -150,7 +151,7 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
 
                     <div className="flex gap-2">
                         <a
-                            href={`/api/adlg/lbr-cases/${c.id}/notesheet`}
+                            href={`${APP_BASE_PATH}/api/adlg/lbr-cases/${c.id}/notesheet`}
                             target="_blank"
                             rel="noopener"
                             className="flex-1 rounded-lg border border-border px-4 py-2 text-center text-sm font-semibold text-ink hover:bg-surface-subtle"

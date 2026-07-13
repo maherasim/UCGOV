@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
+import { APP_BASE_PATH } from './utils/basePath';
 import App from './router';
 
 const queryClient = new QueryClient({
@@ -16,7 +17,7 @@ const queryClient = new QueryClient({
 // StrictMode's double-invoke only ever ran in dev anyway — no production behavior changes.
 createRoot(document.getElementById('app')).render(
     <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter basename={APP_BASE_PATH}>
             <AuthProvider>
                 <App />
             </AuthProvider>

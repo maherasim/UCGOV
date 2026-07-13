@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import client from '../api/client';
+import { APP_BASE_PATH } from '../utils/basePath';
 import { Button, ErrorText, Field, Textarea, TextInput } from './ui';
 
 const emptyForm = {
@@ -150,7 +151,7 @@ export function CaseDocumentButtons({ role, caseId }) {
     return (
         <div className="flex gap-2">
             <a
-                href={`/api/${role}/cases/${caseId}/notesheet`}
+                href={`${APP_BASE_PATH}/api/${role}/cases/${caseId}/notesheet`}
                 target="_blank"
                 rel="noopener"
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-ink hover:bg-surface-subtle"
@@ -158,7 +159,7 @@ export function CaseDocumentButtons({ role, caseId }) {
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" /> Notesheet
             </a>
             <a
-                href={`/api/${role}/cases/${caseId}/full-file`}
+                href={`${APP_BASE_PATH}/api/${role}/cases/${caseId}/full-file`}
                 target="_blank"
                 rel="noopener"
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-ink hover:bg-surface-subtle"

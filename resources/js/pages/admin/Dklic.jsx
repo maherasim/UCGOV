@@ -13,6 +13,7 @@ import {
     TagIcon,
 } from '@heroicons/react/24/outline';
 import client from '../../api/client';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import {
     Badge,
     Button,
@@ -272,7 +273,7 @@ export default function Dklic() {
     const meta = data?.meta || {};
 
     const handleExport = () => {
-        window.open('/api/admin/dklic-documents/export', '_blank');
+        window.open(`${APP_BASE_PATH}/api/admin/dklic-documents/export`, '_blank');
     };
 
     return (

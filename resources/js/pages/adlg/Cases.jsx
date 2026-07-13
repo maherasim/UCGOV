@@ -4,6 +4,7 @@ import { CheckIcon, EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { AddHearingForm, CaseDocumentButtons, ProceedingsList } from '../../components/CaseProceedings';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import {
     Badge,
     Button,
@@ -408,7 +409,7 @@ export default function Cases() {
             <div className="mb-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-ink">Divorce / Khula Registry</h1>
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" onClick={() => window.open('/api/adlg/cases-export', '_blank')}>
+                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/cases-export`, '_blank')}>
                         💾 Export
                     </Button>
                     <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-56">
