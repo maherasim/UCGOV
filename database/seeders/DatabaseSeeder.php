@@ -22,8 +22,8 @@ class DatabaseSeeder extends Seeder
             [
                 'role' => 'sa',
                 'name' => 'System Administrator',
-                'email' => 'sa@demo.pk',
-                'password' => '1234',
+                'email' => 'superadmin@gmail.com',
+                'password' => '123456',
                 'active' => true,
                 'bio_enrolled' => true,
                 'first_login' => false,
