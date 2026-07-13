@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreInquiryRequest;
 use App\Http\Requests\Api\UploadInquiryReportRequest;
 use App\Http\Resources\InquiryResource;
 use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\Inquiry;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class InquiryController extends Controller
@@ -53,5 +56,52 @@ class InquiryController extends Controller
         });
 
         return new InquiryResource($inquiry->fresh(['adlg', 'unionCouncil']));
+    }
+
+    public function indexForAdlg(Request $request)
+    {
+        $inquiries = Inquiry::where('adlg_id', $request->user()->id)
+            ->with('unionCouncil')
+            ->latest('submitted_at')
+            ->get();
+
+        return InquiryResource::collection($inquiries);
+    }
+
+    public function store(StoreInquiryRequest $request)
+    {
+        $filePath = $request->file('file')->store('inquiries', 'public');
+        $ref = 'INQ-' . now()->year . '-' . str_pad((string) (Inquiry::count() + 1), 3, '0', STR_PAD_LEFT);
+
+        $inquiry = Inquiry::create([
+            'ref' => $ref,
+            'subject' => $request->string('subject')->toString(),
+            'adlg_id' => $request->user()->id,
+            'union_council_id' => $request->input('union_council_id'),
+            'remarks' => $request->string('remarks')->toString(),
+            'file_path' => $filePath,
+            'status' => 'PENDING',
+            'submitted_at' => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'INQ_SUBMITTED',
+            'entity_type' => 'Inquiry',
+            'entity_id' => $inquiry->id,
+            'note' => "Inquiry \"{$inquiry->subject}\" submitted by {$request->user()->name}",
+        ]);
+
+        $saIds = User::where('role', 'sa')->pluck('id');
+        foreach ($saIds as $saId) {
+            CaseNotification::create([
+                'to_user_id' => $saId,
+                'from_user_id' => $request->user()->id,
+                'type' => 'INQ_REQUEST',
+                'message' => "New inquiry request from {$request->user()->name}: \"{$inquiry->subject}\" — Ref: {$ref}.",
+            ]);
+        }
+
+        return new InquiryResource($inquiry->load(['adlg', 'unionCouncil']));
     }
 }

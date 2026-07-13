@@ -24,9 +24,14 @@ class DvCase extends Model
         'respondent_name',
         'respondent_cnic',
         'respondent_phone',
+        'marriage_date',
+        'nikah_registrar',
+        'mahr_amount',
+        'children_count',
         'address',
         'receipt_date',
         'attachment_ok',
+        'attachment_path',
         'remarks',
     ];
 
@@ -34,6 +39,7 @@ class DvCase extends Model
     {
         return [
             'receipt_date' => 'date',
+            'marriage_date' => 'date',
             'attachment_ok' => 'boolean',
         ];
     }
@@ -71,6 +77,11 @@ class DvCase extends Model
     public function timeline(): HasMany
     {
         return $this->hasMany(CaseTimelineEvent::class)->orderBy('event_date');
+    }
+
+    public function proceedings(): HasMany
+    {
+        return $this->hasMany(CaseProceeding::class)->orderBy('date');
     }
 
     public function notifications(): HasMany

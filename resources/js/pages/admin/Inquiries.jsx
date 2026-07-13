@@ -8,6 +8,7 @@ import {
     EmptyState,
     ErrorText,
     Field,
+    FileInput,
     FullScreenSpinner,
     Modal,
     Textarea,
@@ -47,7 +48,7 @@ function UploadReportModal({ inquiry, onClose }) {
                 }}
             >
                 <Field label="Final Report (PDF / Word)">
-                    <input type="file" onChange={(e) => setFile(e.target.files[0])} accept=".pdf,.doc,.docx" />
+                    <FileInput value={file} onChange={setFile} accept=".pdf,.doc,.docx" hint="PDF or Word document" />
                 </Field>
                 <Field label="Covering Remarks (optional)">
                     <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} />

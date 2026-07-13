@@ -76,9 +76,10 @@ class AdlgController extends Controller
 
     public function update(UpdateAdlgRequest $request, User $adlg)
     {
-        $tehsil = Tehsil::findOrFail($request->integer('tehsil_id'));
+        $newTehsil = Tehsil::findOrFail($request->integer('tehsil_id'));
+        $oldTehsilId = $adlg->adlgProfile->tehsil_id;
 
-        DB::transaction(function () use ($request, $adlg, $tehsil) {
+        DB::transaction(function () use ($request, $adlg, $newTehsil, $oldTehsilId) {
             $adlg->update([
                 'name' => $request->string('name')->toString(),
                 'username' => $request->string('username')->toString(),
@@ -88,11 +89,15 @@ class AdlgController extends Controller
             ]);
 
             $adlg->adlgProfile->update([
-                'tehsil_id' => $tehsil->id,
+                'tehsil_id' => $newTehsil->id,
                 'grade' => $request->input('grade'),
             ]);
 
-            $tehsil->update(['adlg_activated' => true]);
+            $newTehsil->update(['adlg_activated' => true]);
+
+            if ($oldTehsilId !== $newTehsil->id) {
+                $this->refreshTehsilActivation($oldTehsilId);
+            }
 
             AuditLog::create([
                 'user_id' => $request->user()->id,
@@ -114,6 +119,8 @@ class AdlgController extends Controller
     {
         $adlg->update(['active' => ! $adlg->active]);
 
+        $this->refreshTehsilActivation($adlg->adlgProfile->tehsil_id);
+
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => $adlg->active ? 'ADLG_REACTIVATED' : 'ADLG_DEACTIVATED',
@@ -123,5 +130,19 @@ class AdlgController extends Controller
         ]);
 
         return new UserResource($adlg->load('adlgProfile.tehsil.district'));
+    }
+
+    /**
+     * Recompute a tehsil's adlg_activated flag from whether any active ADLG is actually
+     * assigned to it — needed because moving/deactivating an ADLG doesn't automatically
+     * clear the flag on the tehsil they left.
+     */
+    protected function refreshTehsilActivation(int $tehsilId): void
+    {
+        $stillCovered = AdlgProfile::where('tehsil_id', $tehsilId)
+            ->whereHas('user', fn ($q) => $q->where('active', true))
+            ->exists();
+
+        Tehsil::whereKey($tehsilId)->update(['adlg_activated' => $stillCovered]);
     }
 }

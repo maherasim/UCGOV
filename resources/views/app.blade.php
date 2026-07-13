@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UC Governance Platform | Government of Punjab</title>
+    <link rel="icon" type="image/png" href="/localgovrment.png">
     @if (app()->environment('local'))
         {{-- Blade isn't processed through Vite's HTML transform, so @vitejs/plugin-react's
              automatic Fast Refresh preamble injection never fires — add it manually. --}}

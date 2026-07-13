@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button, ErrorText, Field, TextInput } from '../components/ui';
 
+const ROLE_HOME = {
+    sa: '/admin/dashboard',
+    adlg: '/adlg/dashboard',
+    sec: '/sec/dashboard',
+};
+
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -16,7 +22,12 @@ export default function Login() {
         setSubmitting(true);
         try {
             const user = await login(form.login, form.password);
-            navigate(user.role === 'sa' ? '/admin/dashboard' : '/login', { replace: true });
+            const home = ROLE_HOME[user.role];
+            if (!home) {
+                setError('This role does not have a dashboard yet.');
+                return;
+            }
+            navigate(home, { replace: true });
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid username/email or password.');
         } finally {
@@ -28,8 +39,8 @@ export default function Login() {
         <div className="flex min-h-screen items-center justify-center bg-primary-700 px-4">
             <div className="w-full max-w-sm rounded-2xl bg-surface p-8 shadow-xl">
                 <div className="mb-6 text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary-500 text-xl font-black text-white">
-                        UC
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-surface p-1.5 shadow-sm">
+                        <img src="/localgovrment.png" alt="Government of Punjab" className="h-full w-full object-contain" />
                     </div>
                     <h1 className="mt-3 text-lg font-bold text-ink">UC Governance Platform</h1>
                     <p className="text-xs text-ink-muted">Government of Punjab</p>

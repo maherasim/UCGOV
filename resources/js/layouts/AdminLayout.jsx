@@ -10,12 +10,14 @@ import {
     DocumentTextIcon,
     NewspaperIcon,
     IdentificationIcon,
+    BookOpenIcon,
     Cog6ToothIcon,
     BellIcon,
     ChevronDownIcon,
     ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
+import { Avatar } from '../components/Avatar';
 
 const NAV_GROUPS = [
     {
@@ -42,6 +44,7 @@ const NAV_GROUPS = [
         items: [
             { to: 'inquiries', label: 'Inquiry Requests', icon: DocumentTextIcon },
             { to: 'newsletters', label: 'Newsletters', icon: NewspaperIcon },
+            { to: 'dklic', label: 'DKLIC', icon: BookOpenIcon },
             { to: 'profiles', label: 'Profiles', icon: IdentificationIcon },
         ],
     },
@@ -78,9 +81,7 @@ function UserMenu() {
                 onClick={() => setOpen((v) => !v)}
                 className="flex items-center gap-2.5 rounded-lg py-1.5 pl-1.5 pr-2.5 hover:bg-surface-subtle"
             >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-white">
-                    {user?.name?.charAt(0) || 'S'}
-                </div>
+                <Avatar user={user} size="sm" />
                 <div className="text-left">
                     <div className="text-sm font-semibold leading-tight text-ink">{user?.name}</div>
                     <div className="text-xs leading-tight text-ink-muted">Super Administrator</div>
@@ -117,8 +118,8 @@ export default function AdminLayout() {
         <div className="flex min-h-screen bg-surface-subtle">
             <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500 text-lg font-black text-white">
-                        UC
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">
+                        <img src="/localgovrment.png" alt="Government of Punjab" className="h-full w-full object-contain" />
                     </div>
                     <div>
                         <div className="text-sm font-bold leading-tight">UC Governance</div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import client from '../../api/client';
+import ActivityTimeline from '../../components/ActivityTimeline';
 import { Card, EmptyState, FullScreenSpinner, TextInput } from '../../components/ui';
 
 export default function AuditLog() {
@@ -28,21 +29,7 @@ export default function AuditLog() {
                 <EmptyState icon="📜" title="No audit events" subtitle="System activity will appear here." />
             ) : (
                 <Card>
-                    <ul className="divide-y divide-border">
-                        {data.map((a) => (
-                            <li key={a.id} className="flex items-center justify-between px-4 py-3">
-                                <div>
-                                    <div className="text-sm font-medium text-ink">{a.note || a.action}</div>
-                                    <div className="text-xs text-ink-muted">
-                                        {a.action} · {a.user || 'System'}
-                                    </div>
-                                </div>
-                                <div className="text-xs text-ink-faint">
-                                    {new Date(a.created_at).toLocaleString()}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                    <ActivityTimeline events={data} maxHeight="max-h-none" />
                 </Card>
             )}
         </div>

@@ -29,5 +29,12 @@ class DatabaseSeeder extends Seeder
                 'first_login' => false,
             ]
         );
+
+        $this->call([
+            GeographySeeder::class,
+            UnionCouncilSeeder::class,
+            SecretarySeeder::class,
+            DvCaseSeeder::class,
+        ]);
     }
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { AvatarUpload } from '../../components/Avatar';
 import { Button, Card, ErrorText, Field, Modal, TextInput } from '../../components/ui';
 
 function ResetPasswordModal({ target, onClose }) {
@@ -84,9 +85,7 @@ export default function Profile() {
 
             <Card className="mb-6 p-5">
                 <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-2xl">
-                        ⚡
-                    </div>
+                    <AvatarUpload size="lg" />
                     <div>
                         <div className="text-base font-bold text-ink">{user?.name}</div>
                         <div className="text-sm text-ink-muted">Super Administrator</div>

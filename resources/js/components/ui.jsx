@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { useRef, useState } from 'react';
+import { DocumentIcon, EyeIcon, EyeSlashIcon, PaperClipIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export function Button({ variant = 'primary', className = '', ...props }) {
     const variants = {
@@ -140,13 +140,82 @@ export function Select({ children, ...props }) {
     );
 }
 
+function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function FileInput({ value, onChange, accept, hint, required }) {
+    const inputRef = useRef(null);
+    const [dragOver, setDragOver] = useState(false);
+
+    const handleFile = (file) => {
+        if (file) onChange(file);
+    };
+
+    if (value) {
+        return (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-subtle p-3">
+                <DocumentIcon className="h-8 w-8 flex-shrink-0 text-primary-500" />
+                <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-ink">{value.name}</div>
+                    <div className="text-xs text-ink-muted">{formatFileSize(value.size)}</div>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onChange(null)}
+                    className="flex-shrink-0 rounded-lg p-1.5 text-ink-muted hover:bg-surface hover:text-danger"
+                    aria-label="Remove file"
+                >
+                    <XMarkIcon className="h-4 w-4" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <label
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    handleFile(e.dataTransfer.files?.[0]);
+                }}
+                className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed p-6 text-center transition ${
+                    dragOver ? 'border-primary-500 bg-primary-50' : 'border-border hover:border-primary-300 hover:bg-surface-subtle'
+                }`}
+            >
+                <PaperClipIcon className="h-6 w-6 text-ink-faint" />
+                <div className="text-sm font-medium text-ink">
+                    <span className="text-primary-600">Click to upload</span> or drag and drop
+                </div>
+                {hint && <div className="text-xs text-ink-muted">{hint}</div>}
+                <input
+                    ref={inputRef}
+                    type="file"
+                    className="hidden"
+                    accept={accept}
+                    required={required}
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                />
+            </label>
+        </div>
+    );
+}
+
 export function Modal({ open, onClose, title, subtitle, children }) {
     if (!open) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface p-6 shadow-xl">
-                <div className="mb-4 flex items-start justify-between">
+            <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-surface shadow-xl">
+                <div className="flex flex-shrink-0 items-start justify-between border-b border-border px-6 py-4">
                     <div>
                         <h2 className="text-lg font-bold text-ink">{title}</h2>
                         {subtitle && <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>}
@@ -159,7 +228,7 @@ export function Modal({ open, onClose, title, subtitle, children }) {
                         ✕
                     </button>
                 </div>
-                {children}
+                <div className="overflow-y-auto p-6">{children}</div>
             </div>
         </div>
     );

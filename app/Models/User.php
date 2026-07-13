@@ -28,6 +28,7 @@ class User extends Authenticatable
         'cnic',
         'phone',
         'device_gmail',
+        'avatar_path',
         'active',
         'bio_enrolled',
         'first_login',

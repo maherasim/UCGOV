@@ -1,15 +1,24 @@
 <?php
 
 use App\Http\Controllers\Api\AdlgController;
+use App\Http\Controllers\Api\AdlgDashboardController;
+use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DklicDocumentController;
+use App\Http\Controllers\Api\DklicKnowledgeController;
+use App\Http\Controllers\Api\DvCaseController;
 use App\Http\Controllers\Api\GeographyController;
 use App\Http\Controllers\Api\InquiryController;
+use App\Http\Controllers\Api\LbrCaseController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileSubmissionController;
+use App\Http\Controllers\Api\SecretaryController;
 use App\Http\Controllers\Api\TehsilController;
+use App\Http\Controllers\Api\UnionCouncilController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -18,6 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::patch('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile/change-password', [ProfileController::class, 'changePassword']);
+    Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
 
     Route::middleware('role:sa')->prefix('admin')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
@@ -50,9 +61,92 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/newsletters', [NewsletterController::class, 'index']);
         Route::post('/newsletters', [NewsletterController::class, 'store']);
+        Route::get('/newsletters/{newsletter}/responses', [NewsletterController::class, 'responses']);
 
         Route::get('/profile-submissions', [ProfileSubmissionController::class, 'index']);
 
         Route::post('/users/{user}/reset-password', [ProfileController::class, 'resetPassword']);
+
+        Route::get('/dklic-documents', [DklicDocumentController::class, 'index']);
+        Route::post('/dklic-documents', [DklicDocumentController::class, 'store']);
+        Route::patch('/dklic-documents/{document}/archive', [DklicDocumentController::class, 'archive']);
+        Route::get('/dklic-documents/export', [DklicDocumentController::class, 'export']);
+    });
+
+    Route::middleware('role:adlg')->prefix('adlg')->group(function () {
+        Route::get('/dashboard', [AdlgDashboardController::class, 'index']);
+
+        Route::get('/union-councils', [UnionCouncilController::class, 'index']);
+        Route::post('/union-councils', [UnionCouncilController::class, 'store']);
+        Route::put('/union-councils/{unionCouncil}', [UnionCouncilController::class, 'update']);
+
+        Route::get('/secretaries', [SecretaryController::class, 'index']);
+        Route::post('/secretaries', [SecretaryController::class, 'store']);
+        Route::put('/secretaries/{secretary}', [SecretaryController::class, 'update']);
+        Route::patch('/secretaries/{secretary}/toggle-active', [SecretaryController::class, 'toggleActive']);
+
+        Route::get('/cases', [DvCaseController::class, 'index']);
+        Route::get('/cases/{case}', [DvCaseController::class, 'show']);
+        Route::post('/cases/{case}/mark-seen', [DvCaseController::class, 'markSeen']);
+        Route::post('/cases/{case}/issue-notice', [DvCaseController::class, 'issueNotice']);
+        Route::post('/cases/{case}/pass-decision', [DvCaseController::class, 'passDecision']);
+        Route::post('/cases/{case}/proceedings', [DvCaseController::class, 'addProceeding']);
+        Route::get('/cases/{case}/notesheet', [DvCaseController::class, 'notesheet']);
+        Route::get('/cases/{case}/full-file', [DvCaseController::class, 'fullCaseFile']);
+        Route::get('/cases-export', [DvCaseController::class, 'export']);
+
+        Route::get('/newsletters', [NewsletterController::class, 'indexForAdlg']);
+        Route::post('/newsletters/{newsletter}/respond', [NewsletterController::class, 'respond']);
+
+        Route::get('/inquiries', [InquiryController::class, 'indexForAdlg']);
+        Route::post('/inquiries', [InquiryController::class, 'store']);
+
+        Route::get('/attendance', [AttendanceController::class, 'indexForAdlg']);
+        Route::get('/movement-log', [AttendanceController::class, 'movementIndexForAdlg']);
+
+        Route::get('/reports', [DailyReportController::class, 'indexForAdlg']);
+        Route::patch('/reports/{report}/mark-reviewed', [DailyReportController::class, 'markReviewed']);
+
+        Route::get('/dklic-documents', [DklicKnowledgeController::class, 'index']);
+        Route::post('/dklic-documents/{document}/view', [DklicKnowledgeController::class, 'view']);
+        Route::post('/dklic-documents/{document}/download', [DklicKnowledgeController::class, 'download']);
+        Route::post('/dklic-documents/{document}/bookmark', [DklicKnowledgeController::class, 'toggleBookmark']);
+        Route::post('/dklic-documents/{document}/acknowledge', [DklicKnowledgeController::class, 'acknowledge']);
+        Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
+
+        Route::get('/lbr-cases', [LbrCaseController::class, 'indexForAdlg']);
+        Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForAdlg']);
+        Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
+        Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
+    });
+
+    Route::middleware('role:sec')->prefix('sec')->group(function () {
+        Route::post('/attendance/mark-in', [AttendanceController::class, 'markIn']);
+        Route::get('/attendance', [AttendanceController::class, 'myHistory']);
+        Route::post('/attendance/log-movement', [AttendanceController::class, 'logMovement']);
+
+        Route::post('/reports', [DailyReportController::class, 'store']);
+        Route::get('/reports', [DailyReportController::class, 'myHistory']);
+
+        Route::get('/cases', [DvCaseController::class, 'indexForSecretary']);
+        Route::get('/cases/{case}', [DvCaseController::class, 'showForSecretary']);
+        Route::post('/cases', [DvCaseController::class, 'storeForSecretary']);
+        Route::post('/cases/{case}/constitute-arbitration', [DvCaseController::class, 'constituteArbitration']);
+        Route::post('/cases/{case}/proceedings', [DvCaseController::class, 'addProceeding']);
+        Route::get('/cases/{case}/notesheet', [DvCaseController::class, 'notesheet']);
+        Route::get('/cases/{case}/full-file', [DvCaseController::class, 'fullCaseFile']);
+
+        Route::get('/dklic-documents', [DklicKnowledgeController::class, 'index']);
+        Route::post('/dklic-documents/{document}/view', [DklicKnowledgeController::class, 'view']);
+        Route::post('/dklic-documents/{document}/download', [DklicKnowledgeController::class, 'download']);
+        Route::post('/dklic-documents/{document}/bookmark', [DklicKnowledgeController::class, 'toggleBookmark']);
+        Route::post('/dklic-documents/{document}/acknowledge', [DklicKnowledgeController::class, 'acknowledge']);
+        Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
+
+        Route::get('/lbr-cases', [LbrCaseController::class, 'indexForSecretary']);
+        Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForSecretary']);
+        Route::post('/lbr-cases', [LbrCaseController::class, 'storeForSecretary']);
+        Route::post('/lbr-cases/{lbrCase}/register-certificate', [LbrCaseController::class, 'registerCertificate']);
+        Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
     });
 });

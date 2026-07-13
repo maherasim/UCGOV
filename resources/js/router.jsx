@@ -2,52 +2,133 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullScreenSpinner } from './components/ui';
 import Login from './pages/Login';
+
 import AdminLayout from './layouts/AdminLayout';
-import Dashboard from './pages/admin/Dashboard';
+import AdminDashboard from './pages/admin/Dashboard';
 import Divisions from './pages/admin/Divisions';
 import Districts from './pages/admin/Districts';
 import Tehsils from './pages/admin/Tehsils';
 import Adlgs from './pages/admin/Adlgs';
 import AuditLog from './pages/admin/AuditLog';
-import Inquiries from './pages/admin/Inquiries';
-import Newsletters from './pages/admin/Newsletters';
+import AdminInquiries from './pages/admin/Inquiries';
+import AdminNewsletters from './pages/admin/Newsletters';
+import AdminDklic from './pages/admin/Dklic';
 import Profiles from './pages/admin/Profiles';
-import Profile from './pages/admin/Profile';
+import AdminProfile from './pages/admin/Profile';
 
-function RequireSuperAdmin({ children }) {
+import AdlgLayout from './layouts/AdlgLayout';
+import AdlgDashboard from './pages/adlg/Dashboard';
+import UnionCouncils from './pages/adlg/UnionCouncils';
+import Secretaries from './pages/adlg/Secretaries';
+import Cases from './pages/adlg/Cases';
+import AdlgAttendance from './pages/adlg/Attendance';
+import AdlgReports from './pages/adlg/Reports';
+import AdlgNewsletters from './pages/adlg/Newsletters';
+import AdlgInquiries from './pages/adlg/Inquiries';
+import AdlgDklic from './pages/adlg/Dklic';
+import AdlgLbr from './pages/adlg/Lbr';
+import AdlgProfile from './pages/adlg/Profile';
+
+import SecLayout from './layouts/SecLayout';
+import SecDashboard from './pages/sec/Dashboard';
+import SecAttendance from './pages/sec/Attendance';
+import SecReports from './pages/sec/Reports';
+import SecCases from './pages/sec/Cases';
+import SecLbr from './pages/sec/Lbr';
+import SecDklic from './pages/sec/Dklic';
+import SecProfile from './pages/sec/Profile';
+
+const ROLE_HOME = {
+    sa: '/admin/dashboard',
+    adlg: '/adlg/dashboard',
+    sec: '/sec/dashboard',
+};
+
+function RequireRole({ role, children }) {
     const { user, loading } = useAuth();
 
     if (loading) return <FullScreenSpinner />;
-    if (!user || user.role !== 'sa') return <Navigate to="/login" replace />;
+    if (!user || user.role !== role) return <Navigate to="/login" replace />;
 
     return children;
+}
+
+function DefaultRedirect() {
+    const { user, loading } = useAuth();
+
+    if (loading) return <FullScreenSpinner />;
+
+    return <Navigate to={(user && ROLE_HOME[user.role]) || '/login'} replace />;
 }
 
 export default function App() {
     return (
         <Routes>
             <Route path="/login" element={<Login />} />
+
             <Route
                 path="/admin"
                 element={
-                    <RequireSuperAdmin>
+                    <RequireRole role="sa">
                         <AdminLayout />
-                    </RequireSuperAdmin>
+                    </RequireRole>
                 }
             >
                 <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="divisions" element={<Divisions />} />
                 <Route path="districts" element={<Districts />} />
                 <Route path="tehsils" element={<Tehsils />} />
                 <Route path="adlgs" element={<Adlgs />} />
                 <Route path="audit-log" element={<AuditLog />} />
-                <Route path="inquiries" element={<Inquiries />} />
-                <Route path="newsletters" element={<Newsletters />} />
+                <Route path="inquiries" element={<AdminInquiries />} />
+                <Route path="newsletters" element={<AdminNewsletters />} />
+                <Route path="dklic" element={<AdminDklic />} />
                 <Route path="profiles" element={<Profiles />} />
-                <Route path="profile" element={<Profile />} />
+                <Route path="profile" element={<AdminProfile />} />
             </Route>
-            <Route path="*" element={<Navigate to="/admin" replace />} />
+
+            <Route
+                path="/adlg"
+                element={
+                    <RequireRole role="adlg">
+                        <AdlgLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AdlgDashboard />} />
+                <Route path="union-councils" element={<UnionCouncils />} />
+                <Route path="secretaries" element={<Secretaries />} />
+                <Route path="cases" element={<Cases />} />
+                <Route path="lbr" element={<AdlgLbr />} />
+                <Route path="attendance" element={<AdlgAttendance />} />
+                <Route path="reports" element={<AdlgReports />} />
+                <Route path="newsletters" element={<AdlgNewsletters />} />
+                <Route path="dklic" element={<AdlgDklic />} />
+                <Route path="inquiries" element={<AdlgInquiries />} />
+                <Route path="profile" element={<AdlgProfile />} />
+            </Route>
+
+            <Route
+                path="/sec"
+                element={
+                    <RequireRole role="sec">
+                        <SecLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<SecDashboard />} />
+                <Route path="attendance" element={<SecAttendance />} />
+                <Route path="reports" element={<SecReports />} />
+                <Route path="cases" element={<SecCases />} />
+                <Route path="lbr" element={<SecLbr />} />
+                <Route path="dklic" element={<SecDklic />} />
+                <Route path="profile" element={<SecProfile />} />
+            </Route>
+
+            <Route path="*" element={<DefaultRedirect />} />
         </Routes>
     );
 }
