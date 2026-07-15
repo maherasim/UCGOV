@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkIcon as BookmarkOutline, CalendarDaysIcon, CheckBadgeIcon, PaperAirplaneIcon, SparklesIcon, TagIcon } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid';
 import client from '../api/client';
+import { getLastModule, MODULE_KEYWORDS, MODULE_LABELS } from '../utils/lastModule';
 import { Badge, Button, Card, EmptyState, FullScreenSpinner, Modal, TextInput } from './ui';
 
 const CATEGORIES = [
@@ -294,6 +295,42 @@ function DocumentCard({ doc, role, onOpen }) {
     );
 }
 
+function SmartRecommendations({ documents, onOpen }) {
+    const lastModule = getLastModule();
+    if (!lastModule || !MODULE_KEYWORDS[lastModule]) return null;
+
+    const keywords = MODULE_KEYWORDS[lastModule];
+    const relevant = documents
+        .filter((d) =>
+            keywords.some(
+                (kw) => d.title.toLowerCase().includes(kw) || (d.tags || []).some((t) => t.toLowerCase().includes(kw))
+            )
+        )
+        .slice(0, 2);
+
+    if (!relevant.length) return null;
+
+    return (
+        <div className="mb-3 rounded-xl border border-accent-400/30 bg-accent-100/40 px-4 py-3">
+            <p className="text-xs text-ink-muted">
+                Based on your recent activity in <b className="text-ink">{MODULE_LABELS[lastModule]}</b>, these documents may be
+                relevant:
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                {relevant.map((d) => (
+                    <button
+                        key={d.id}
+                        onClick={() => onOpen(d)}
+                        className="rounded-full border border-accent-400/30 bg-surface px-2.5 py-1 text-[11px] font-semibold text-accent-600 hover:bg-accent-100/60"
+                    >
+                        📄 {d.title}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function DklicKnowledge({ role }) {
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('');
@@ -353,6 +390,7 @@ export default function DklicKnowledge({ role }) {
                         <EmptyState icon="📂" title="No documents match the current filters" />
                     ) : (
                         <div className="space-y-3">
+                            <SmartRecommendations documents={data} onOpen={setOpenDoc} />
                             {data.map((d) => (
                                 <DocumentCard key={d.id} doc={d} role={role} onOpen={setOpenDoc} />
                             ))}

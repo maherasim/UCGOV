@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { AddHearingForm, CaseDocumentButtons, ProceedingsList } from '../../components/CaseProceedings';
 import { APP_BASE_PATH } from '../../utils/basePath';
+import { setLastModule } from '../../utils/lastModule';
 import {
     Badge,
     Button,
@@ -394,6 +395,8 @@ function CaseDetailModal({ caseId, onClose }) {
 }
 
 export default function Cases() {
+    useEffect(() => setLastModule('dv'), []);
+
     const [statusFilter, setStatusFilter] = useState('');
     const [activeCaseId, setActiveCaseId] = useState(null);
 

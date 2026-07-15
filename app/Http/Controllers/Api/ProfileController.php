@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\ChangePasswordRequest;
+use App\Http\Requests\Api\CompleteFirstLoginRequest;
 use App\Http\Requests\Api\ResetPasswordRequest;
 use App\Http\Requests\Api\UpdateProfileRequest;
 use App\Http\Requests\Api\UploadAvatarRequest;
@@ -52,6 +53,31 @@ class ProfileController extends Controller
         ]);
 
         return response()->noContent();
+    }
+
+    /**
+     * First-login setup wizard: set a real password + simulated biometric enrollment
+     * (no real hardware — same as the prototype, which also just flips a boolean).
+     */
+    public function completeFirstLogin(CompleteFirstLoginRequest $request)
+    {
+        $user = $request->user();
+
+        $user->forceFill([
+            'password' => Hash::make($request->string('password')->toString()),
+            'first_login' => false,
+            'bio_enrolled' => true,
+        ])->save();
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'FIRST_LOGIN_COMPLETED',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'note' => "{$user->name} completed first-login setup (password + biometric enrollment)",
+        ]);
+
+        return new UserResource($user);
     }
 
     public function resetPassword(ResetPasswordRequest $request, User $user)

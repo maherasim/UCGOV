@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { APP_BASE_PATH } from '../../utils/basePath';
+import { setLastModule } from '../../utils/lastModule';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, FileInput, FullScreenSpinner, Modal, TextInput, Textarea } from '../../components/ui';
 
 const emptyForm = { remarks: '', nikah_count: 0, birth_count: 0, death_count: 0, complaint_count: 0 };
@@ -198,6 +199,7 @@ function PerformasTab() {
 function DailyReportTab() {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
+    const [attachment, setAttachment] = useState(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
@@ -210,10 +212,16 @@ function DailyReportTab() {
     const submittedToday = data?.some((r) => r.report_date === today);
 
     const mutation = useMutation({
-        mutationFn: () => client.post('/api/sec/reports', form),
+        mutationFn: () => {
+            const formData = new FormData();
+            Object.entries(form).forEach(([key, value]) => formData.append(key, value));
+            if (attachment) formData.append('attachment', attachment);
+            return client.post('/api/sec/reports', formData);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sec-reports'] });
             setForm(emptyForm);
+            setAttachment(null);
             setSuccess(true);
         },
         onError: (err) => setError(err.response?.data?.message || 'Could not submit report.'),
@@ -258,6 +266,9 @@ function DailyReportTab() {
                                     required
                                 />
                             </Field>
+                            <Field label="Attachment (optional)">
+                                <FileInput value={attachment} onChange={setAttachment} accept=".pdf,.jpg,.jpeg,.png" hint="PDF · Image" />
+                            </Field>
                             <ErrorText>{error}</ErrorText>
                             <Button type="submit" className="mt-2 w-full" disabled={mutation.isPending}>
                                 {mutation.isPending ? 'Submitting…' : 'Submit Report'}
@@ -281,6 +292,16 @@ function DailyReportTab() {
                                         <Badge tone={r.reviewed ? 'success' : 'warning'}>{r.reviewed ? 'Reviewed' : 'Pending'}</Badge>
                                     </div>
                                     <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{r.remarks}</p>
+                                    {r.attachment_url && (
+                                        <a
+                                            href={r.attachment_url}
+                                            target="_blank"
+                                            rel="noopener"
+                                            className="mt-1 inline-block text-[11px] font-semibold text-primary-600 hover:underline"
+                                        >
+                                            📎 Attachment
+                                        </a>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -292,6 +313,8 @@ function DailyReportTab() {
 }
 
 export default function Reports() {
+    useEffect(() => setLastModule('rep'), []);
+
     const [tab, setTab] = useState('daily');
 
     const { data: performas } = useQuery({

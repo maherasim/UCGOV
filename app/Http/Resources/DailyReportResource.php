@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class DailyReportResource extends JsonResource
 {
@@ -19,6 +20,7 @@ class DailyReportResource extends JsonResource
             'birth_count' => $this->birth_count,
             'death_count' => $this->death_count,
             'complaint_count' => $this->complaint_count,
+            'attachment_url' => $this->attachment_path ? Storage::disk('public')->url($this->attachment_path) : null,
             'reviewed' => $this->reviewed,
             'reviewed_at' => $this->reviewed_at,
         ];

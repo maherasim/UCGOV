@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, PaperClipIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import { APP_BASE_PATH } from '../../utils/basePath';
+import { setLastModule } from '../../utils/lastModule';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, FileInput, FullScreenSpinner, Modal, Select, TextInput, Textarea } from '../../components/ui';
 
 const FIELD_TYPES = ['text', 'number', 'date'];
@@ -150,6 +152,16 @@ function ResponsesModal({ performa, onClose }) {
 
     return (
         <Modal open={!!performa} onClose={onClose} title={performa?.title} subtitle="Secretary responses">
+            {!!data?.length && (
+                <div className="mb-3 flex justify-end">
+                    <Button
+                        variant="ghost"
+                        onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/performas/${performa.id}/responses/export`, '_blank')}
+                    >
+                        📥 Export CSV
+                    </Button>
+                </div>
+            )}
             {isLoading ? (
                 <FullScreenSpinner />
             ) : !data?.length ? (
@@ -282,7 +294,19 @@ function DailyReportsTab() {
                 slots={{
                     7: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
                     8: (data, row) => (
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-1">
+                            {row.attachment_url && (
+                                <a
+                                    href={row.attachment_url}
+                                    target="_blank"
+                                    rel="noopener"
+                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                    aria-label="View Attachment"
+                                    title="View Attachment"
+                                >
+                                    <PaperClipIcon className="h-4 w-4" />
+                                </a>
+                            )}
                             {!row.reviewed && (
                                 <button
                                     onClick={() => reviewMutation.mutate(row.id)}
@@ -301,6 +325,8 @@ function DailyReportsTab() {
 }
 
 export default function Reports() {
+    useEffect(() => setLastModule('rep'), []);
+
     const [tab, setTab] = useState('daily');
 
     return (

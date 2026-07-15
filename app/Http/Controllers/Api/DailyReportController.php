@@ -16,6 +16,10 @@ class DailyReportController extends Controller
         $user = $request->user();
         $uc = $user->secretaryProfile->unionCouncil;
 
+        $attachmentPath = $request->hasFile('attachment')
+            ? $request->file('attachment')->store('daily-reports', 'public')
+            : null;
+
         $report = DailyReport::create([
             'secretary_id' => $user->id,
             'union_council_id' => $uc->id,
@@ -25,6 +29,7 @@ class DailyReportController extends Controller
             'birth_count' => $request->integer('birth_count'),
             'death_count' => $request->integer('death_count'),
             'complaint_count' => $request->integer('complaint_count'),
+            'attachment_path' => $attachmentPath,
             'reviewed' => false,
         ]);
 

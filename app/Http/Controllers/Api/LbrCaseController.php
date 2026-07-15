@@ -319,6 +319,41 @@ class LbrCaseController extends Controller
         ]);
     }
 
+    public function export(Request $request)
+    {
+        $tehsilId = $request->user()->adlgProfile->tehsil_id;
+
+        $cases = LbrCase::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with('unionCouncil')
+            ->latest('created_at')
+            ->get();
+
+        $rows = ['LBR-ID,Status,Category,UC,Tehsil,Child Name,DOB,Applicant,Applicant CNIC,Applied,Certificate No'];
+        foreach ($cases as $c) {
+            $rows[] = implode(',', [
+                $c->lbr_id,
+                $c->status,
+                $c->category,
+                '"'.$c->unionCouncil->name.'"',
+                '"'.($c->unionCouncil->tehsil?->name ?? '').'"',
+                '"'.str_replace('"', '""', $c->child_name).'"',
+                $c->dob->toDateString(),
+                '"'.str_replace('"', '""', $c->applicant_name).'"',
+                $c->applicant_cnic,
+                $c->created_at->toDateString(),
+                $c->certificate_no ?? '',
+            ]);
+        }
+
+        $csv = implode("\n", $rows);
+        $filename = 'LBR_Registry_'.now()->toDateString().'.csv';
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
     protected function authorizeOwnUc(Request $request, LbrCase $lbrCase): void
     {
         $ucId = $request->user()->secretaryProfile->union_council_id;

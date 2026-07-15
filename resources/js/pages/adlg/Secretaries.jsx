@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExclamationTriangleIcon, IdentificationIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, IdentificationIcon, KeyIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import {
@@ -155,6 +155,59 @@ function SecretaryFormModal({ open, onClose, secretary }) {
     );
 }
 
+function ResetPasswordModal({ secretary, onClose }) {
+    const [password, setPassword] = useState('');
+    const [confirmation, setConfirmation] = useState('');
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
+
+    const close = () => {
+        setPassword('');
+        setConfirmation('');
+        setError('');
+        setSuccess(false);
+        onClose();
+    };
+
+    const mutation = useMutation({
+        mutationFn: () =>
+            client.post(`/api/adlg/secretaries/${secretary.id}/reset-password`, {
+                password,
+                password_confirmation: confirmation,
+            }),
+        onSuccess: () => setSuccess(true),
+        onError: (err) => setError(err.response?.data?.message || 'Could not reset password.'),
+    });
+
+    return (
+        <Modal open={!!secretary} onClose={close} title="Reset Password" subtitle={secretary?.name}>
+            {success ? (
+                <div className="rounded-lg bg-primary-50 p-4 text-sm font-medium text-primary-700">
+                    ✅ Password updated. Share the new password with {secretary?.name} securely.
+                </div>
+            ) : (
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        mutation.mutate();
+                    }}
+                >
+                    <Field label="New Password">
+                        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    </Field>
+                    <Field label="Confirm Password">
+                        <PasswordInput value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required />
+                    </Field>
+                    <ErrorText>{error}</ErrorText>
+                    <Button type="submit" className="mt-2 w-full" disabled={mutation.isPending}>
+                        {mutation.isPending ? 'Resetting…' : 'Reset Password'}
+                    </Button>
+                </form>
+            )}
+        </Modal>
+    );
+}
+
 function ChargesModal({ secretary, onClose }) {
     const queryClient = useQueryClient();
     const [selected, setSelected] = useState('');
@@ -248,6 +301,7 @@ export default function Secretaries() {
     const [formTarget, setFormTarget] = useState(null);
     const [toggleTarget, setToggleTarget] = useState(null);
     const [chargesTarget, setChargesTarget] = useState(null);
+    const [resetTarget, setResetTarget] = useState(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['adlg-secretaries'],
@@ -315,6 +369,14 @@ export default function Secretaries() {
                                     <IdentificationIcon className="h-4 w-4" />
                                 </button>
                                 <button
+                                    onClick={() => setResetTarget(row)}
+                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                    aria-label="Reset Password"
+                                    title="Reset Password"
+                                >
+                                    <KeyIcon className="h-4 w-4" />
+                                </button>
+                                <button
                                     onClick={() => setFormTarget(row)}
                                     className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
                                     aria-label="Edit"
@@ -335,6 +397,8 @@ export default function Secretaries() {
             />
 
             <ChargesModal secretary={data.find((s) => s.id === chargesTarget)} onClose={() => setChargesTarget(null)} />
+
+            <ResetPasswordModal secretary={resetTarget} onClose={() => setResetTarget(null)} />
 
             <ConfirmDialog
                 open={!!toggleTarget}

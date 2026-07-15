@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import DocumentPreviewModal, { DocumentLink } from '../../components/DocumentPreviewModal';
 import { APP_BASE_PATH } from '../../utils/basePath';
+import { setLastModule } from '../../utils/lastModule';
 import { Badge, Button, Card, ErrorText, Field, FullScreenSpinner, Modal, Select, Textarea, TextInput } from '../../components/ui';
 
 const STATUS_TONE = {
@@ -89,6 +91,8 @@ function ReviewModal({ lbrCase, onClose }) {
 }
 
 function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
+    const [previewDoc, setPreviewDoc] = useState(null);
+
     const { data: c, isLoading } = useQuery({
         queryKey: ['adlg-lbr-case', lbrCaseId],
         queryFn: () => client.get(`/api/adlg/lbr-cases/${lbrCaseId}`).then((r) => r.data.data),
@@ -131,15 +135,15 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
                         {c.documents.length === 0 ? (
                             <p className="text-xs text-ink-faint">No documents.</p>
                         ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
                                 {c.documents.map((d) => (
-                                    <a key={d.doc_key} href={d.file_url} target="_blank" rel="noreferrer" className="block text-xs font-medium text-primary-600 hover:underline">
-                                        📎 {d.label}
-                                    </a>
+                                    <DocumentLink key={d.doc_key} label={d.label} fileUrl={d.file_url} onPreview={setPreviewDoc} />
                                 ))}
                             </div>
                         )}
                     </div>
+
+                    <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
 
                     {c.adlg_observations && (
                         <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
@@ -171,6 +175,8 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
 }
 
 export default function Lbr() {
+    useEffect(() => setLastModule('lbr'), []);
+
     const [activeId, setActiveId] = useState(null);
     const [reviewTarget, setReviewTarget] = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
@@ -205,6 +211,9 @@ export default function Lbr() {
                         <option value="RETURNED">Returned</option>
                         <option value="REGISTERED">Registered</option>
                     </Select>
+                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/lbr-cases-export`, '_blank')}>
+                        📥 Export
+                    </Button>
                 </div>
             </div>
 

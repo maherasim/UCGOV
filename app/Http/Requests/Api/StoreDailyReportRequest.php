@@ -19,6 +19,7 @@ class StoreDailyReportRequest extends FormRequest
             'birth_count' => ['nullable', 'integer', 'min:0'],
             'death_count' => ['nullable', 'integer', 'min:0'],
             'complaint_count' => ['nullable', 'integer', 'min:0'],
+            'attachment' => ['nullable', 'file', 'max:10240'],
         ];
     }
 }

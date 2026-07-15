@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PerformaController extends Controller
 {
@@ -108,6 +109,49 @@ class PerformaController extends Controller
 
         return response()->json([
             'data' => $responses->map(fn (PerformaResponse $r) => $this->responseArray($r)),
+        ]);
+    }
+
+    public function exportResponses(Request $request, Performa $performa)
+    {
+        abort_unless($performa->tehsil_id === $request->user()->adlgProfile->tehsil_id, 403);
+
+        $responses = $performa->responses()
+            ->with(['secretary.secretaryProfile.unionCouncil', 'values.field'])
+            ->latest('response_date')
+            ->get();
+
+        if ($performa->mode === 'form') {
+            $fieldLabels = $performa->fields()->orderBy('sort_order')->pluck('label', 'id');
+            $rows = ['Date,Secretary,UC,'.$fieldLabels->map(fn ($l) => '"'.str_replace('"', '""', $l).'"')->implode(',')];
+            foreach ($responses as $r) {
+                $valuesByField = $r->values->keyBy('performa_field_id');
+                $cells = $fieldLabels->keys()->map(fn ($fieldId) => '"'.str_replace('"', '""', $valuesByField->get($fieldId)?->value ?? '').'"');
+                $rows[] = implode(',', [
+                    $r->response_date->toDateString(),
+                    '"'.str_replace('"', '""', $r->secretary->name).'"',
+                    '"'.str_replace('"', '""', $r->secretary->secretaryProfile?->unionCouncil?->name ?? '').'"',
+                    ...$cells,
+                ]);
+            }
+        } else {
+            $rows = ['Date,Secretary,UC,File URL'];
+            foreach ($responses as $r) {
+                $rows[] = implode(',', [
+                    $r->response_date->toDateString(),
+                    '"'.str_replace('"', '""', $r->secretary->name).'"',
+                    '"'.str_replace('"', '""', $r->secretary->secretaryProfile?->unionCouncil?->name ?? '').'"',
+                    $r->file_path ? Storage::disk('public')->url($r->file_path) : '',
+                ]);
+            }
+        }
+
+        $csv = implode("\n", $rows);
+        $filename = 'Performa_'.Str::slug($performa->title).'_'.now()->toDateString().'.csv';
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 

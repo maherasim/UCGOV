@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { FullScreenSpinner } from './components/ui';
 import Login from './pages/Login';
+import FirstLoginSetup from './pages/FirstLoginSetup';
 
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -49,6 +50,17 @@ function RequireRole({ role, children }) {
 
     if (loading) return <FullScreenSpinner />;
     if (!user || user.role !== role) return <Navigate to="/login" replace />;
+    if (user.first_login) return <Navigate to="/first-login-setup" replace />;
+
+    return children;
+}
+
+function RequireFirstLogin({ children }) {
+    const { user, loading } = useAuth();
+
+    if (loading) return <FullScreenSpinner />;
+    if (!user) return <Navigate to="/login" replace />;
+    if (!user.first_login) return <Navigate to={ROLE_HOME[user.role] || '/login'} replace />;
 
     return children;
 }
@@ -57,6 +69,7 @@ function DefaultRedirect() {
     const { user, loading } = useAuth();
 
     if (loading) return <FullScreenSpinner />;
+    if (user?.first_login) return <Navigate to="/first-login-setup" replace />;
 
     return <Navigate to={(user && ROLE_HOME[user.role]) || '/login'} replace />;
 }
@@ -65,6 +78,14 @@ export default function App() {
     return (
         <Routes>
             <Route path="/login" element={<Login />} />
+            <Route
+                path="/first-login-setup"
+                element={
+                    <RequireFirstLogin>
+                        <FirstLoginSetup />
+                    </RequireFirstLogin>
+                }
+            />
 
             <Route
                 path="/admin"

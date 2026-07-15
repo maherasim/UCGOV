@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import LiveMap from '../../components/LiveMap';
 import { APP_BASE_PATH } from '../../utils/basePath';
+import { setLastModule } from '../../utils/lastModule';
 import { Badge, Button, Card, FullScreenSpinner } from '../../components/ui';
 
 export default function Attendance() {
+    useEffect(() => setLastModule('att'), []);
+
     const [tab, setTab] = useState('attendance');
 
     const attendance = useQuery({

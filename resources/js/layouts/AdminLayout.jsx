@@ -12,12 +12,12 @@ import {
     IdentificationIcon,
     BookOpenIcon,
     Cog6ToothIcon,
-    BellIcon,
     ChevronDownIcon,
     ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/Avatar';
+import NotificationBell from '../components/NotificationBell';
 import { APP_BASE_PATH } from '../utils/basePath';
 
 const NAV_GROUPS = [
@@ -168,9 +168,7 @@ export default function AdminLayout() {
                         <p className="text-xs text-ink-muted">Union Council Governance &amp; Administration</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button className="relative rounded-full p-2 text-ink-muted hover:bg-surface-subtle">
-                            <BellIcon className="h-5 w-5" />
-                        </button>
+                        <NotificationBell />
                         <div className="h-6 w-px bg-border" />
                         <UserMenu />
                     </div>

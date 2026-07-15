@@ -102,6 +102,15 @@ export function Field({ label, children }) {
     );
 }
 
+/**
+ * A persistent label for one input inside a grouped Field (e.g. Name/CNIC/Phone stacked
+ * under one "Divorcer" heading) — placeholder text alone isn't enough to tell an empty,
+ * editable field apart from static text, especially when the placeholder looks like real data.
+ */
+export function SubLabel({ children }) {
+    return <span className="mb-1 block text-[11px] font-medium text-ink-muted">{children}</span>;
+}
+
 const inputClass =
     'w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
 

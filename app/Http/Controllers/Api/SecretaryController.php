@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\AssignUcChargeRequest;
+use App\Http\Requests\Api\ResetPasswordRequest;
 use App\Http\Requests\Api\StoreSecretaryRequest;
 use App\Http\Requests\Api\UpdateSecretaryRequest;
 use App\Http\Resources\UserResource;
@@ -124,6 +125,23 @@ class SecretaryController extends Controller
         ]);
 
         return new UserResource($secretary->load('secretaryProfile.unionCouncil'));
+    }
+
+    public function resetPassword(ResetPasswordRequest $request, User $secretary)
+    {
+        $this->authorizeOwnTehsil($request, $secretary);
+
+        $secretary->forceFill(['password' => Hash::make($request->string('password')->toString())])->save();
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'PASSWORD_RESET',
+            'entity_type' => 'User',
+            'entity_id' => $secretary->id,
+            'note' => "Password reset for {$secretary->name} by ADLG",
+        ]);
+
+        return response()->noContent();
     }
 
     /**

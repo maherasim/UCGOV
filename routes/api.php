@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\GeographyController;
 use App\Http\Controllers\Api\InquiryController;
 use App\Http\Controllers\Api\LbrCaseController;
 use App\Http\Controllers\Api\NewsletterController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PerformaController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileSubmissionController;
@@ -30,7 +31,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::patch('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/change-password', [ProfileController::class, 'changePassword']);
+    Route::post('/profile/complete-first-login', [ProfileController::class, 'completeFirstLogin']);
     Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
     Route::middleware('role:sa')->prefix('admin')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
@@ -56,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/adlgs/{adlg}/toggle-active', [AdlgController::class, 'toggleActive']);
 
         Route::get('/audit-log', [AuditLogController::class, 'index']);
+        Route::get('/audit-log-export', [AuditLogController::class, 'export']);
 
         Route::get('/inquiries', [InquiryController::class, 'index']);
         Route::get('/inquiries/{inquiry}', [InquiryController::class, 'show']);
@@ -87,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/secretaries', [SecretaryController::class, 'store']);
         Route::put('/secretaries/{secretary}', [SecretaryController::class, 'update']);
         Route::patch('/secretaries/{secretary}/toggle-active', [SecretaryController::class, 'toggleActive']);
+        Route::post('/secretaries/{secretary}/reset-password', [SecretaryController::class, 'resetPassword']);
         Route::post('/secretaries/{secretary}/charges', [SecretaryController::class, 'assignAdditionalCharge']);
         Route::delete('/secretaries/{secretary}/charges/{unionCouncil}', [SecretaryController::class, 'removeAdditionalCharge']);
 
@@ -118,6 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/performas', [PerformaController::class, 'indexForAdlg']);
         Route::post('/performas', [PerformaController::class, 'store']);
         Route::get('/performas/{performa}/responses', [PerformaController::class, 'responses']);
+        Route::get('/performas/{performa}/responses/export', [PerformaController::class, 'exportResponses']);
         Route::get('/performas/{performa}/template', [PerformaController::class, 'downloadTemplateForAdlg']);
 
         Route::get('/dklic-documents', [DklicKnowledgeController::class, 'index']);
@@ -128,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
 
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForAdlg']);
+        Route::get('/lbr-cases-export', [LbrCaseController::class, 'export']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForAdlg']);
         Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import client from '../../api/client';
 import ActivityTimeline from '../../components/ActivityTimeline';
-import { Card, EmptyState, FullScreenSpinner, TextInput } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
+import { Button, Card, EmptyState, FullScreenSpinner, TextInput } from '../../components/ui';
 
 export default function AuditLog() {
     const [search, setSearch] = useState('');
@@ -14,7 +15,20 @@ export default function AuditLog() {
 
     return (
         <div>
-            <h1 className="mb-4 text-xl font-bold text-ink">Audit Log</h1>
+            <div className="mb-4 flex items-center justify-between">
+                <h1 className="text-xl font-bold text-ink">Audit Log</h1>
+                <Button
+                    variant="ghost"
+                    onClick={() =>
+                        window.open(
+                            `${APP_BASE_PATH}/api/admin/audit-log-export${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+                            '_blank'
+                        )
+                    }
+                >
+                    📥 Export CSV
+                </Button>
+            </div>
 
             <TextInput
                 className="mb-4 max-w-sm"

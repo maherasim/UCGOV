@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FingerPrintIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { useAuth } from '../../context/AuthContext';
+import { setLastModule } from '../../utils/lastModule';
 import { Badge, Button, Card, ErrorText, Field, Modal, Select, Textarea } from '../../components/ui';
 
 const MOVEMENT_REASONS = ['Field Visit', 'Tehsil Office Meeting', 'Court Hearing', 'Document Delivery', 'Other'];
@@ -70,6 +71,8 @@ function LogMovementModal({ open, onClose }) {
 }
 
 export default function Attendance() {
+    useEffect(() => setLastModule('att'), []);
+
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [movementOpen, setMovementOpen] = useState(false);

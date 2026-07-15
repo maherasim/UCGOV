@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { AddHearingForm, CaseDocumentButtons, ProceedingsList } from '../../components/CaseProceedings';
+import { setLastModule } from '../../utils/lastModule';
 import {
     Badge,
     Button,
@@ -13,6 +14,7 @@ import {
     FullScreenSpinner,
     Modal,
     Select,
+    SubLabel,
     Textarea,
     TextInput,
 } from '../../components/ui';
@@ -148,71 +150,85 @@ function NewCaseWizard({ open, onClose }) {
             {step === 2 && (
                 <div>
                     <Field label={isDivorce ? 'Divorcer (Husband)' : 'Divorcer (Wife)'}>
+                        <SubLabel>Full Name</SubLabel>
                         <TextInput
                             value={form.divorcer_name}
                             onChange={set('divorcer_name')}
-                            placeholder="Full name"
+                            placeholder="e.g. Muhammad Ali"
                             className="mb-2"
                             required
                         />
+                        <SubLabel>CNIC</SubLabel>
                         <TextInput
                             value={form.divorcer_cnic}
                             onChange={(e) => setForm({ ...form, divorcer_cnic: formatCnic(e.target.value) })}
-                            placeholder="CNIC: 36602-3534535-7"
+                            placeholder="XXXXX-XXXXXXX-X"
                             className="mb-2"
                             required
                         />
+                        <SubLabel>Phone (optional)</SubLabel>
                         <TextInput
                             value={form.divorcer_phone}
                             onChange={(e) => setForm({ ...form, divorcer_phone: formatPhone(e.target.value) })}
-                            placeholder="Phone: 0300-1234567"
+                            placeholder="03XX-XXXXXXX"
                         />
                     </Field>
                     <Field label={isDivorce ? 'Respondent (Wife)' : 'Respondent (Husband)'}>
+                        <SubLabel>Full Name</SubLabel>
                         <TextInput
                             value={form.respondent_name}
                             onChange={set('respondent_name')}
-                            placeholder="Full name"
+                            placeholder="e.g. Ayesha Bibi"
                             className="mb-2"
                             required
                         />
+                        <SubLabel>CNIC</SubLabel>
                         <TextInput
                             value={form.respondent_cnic}
                             onChange={(e) => setForm({ ...form, respondent_cnic: formatCnic(e.target.value) })}
-                            placeholder="CNIC: 36602-3534535-7"
+                            placeholder="XXXXX-XXXXXXX-X"
                             className="mb-2"
                             required
                         />
+                        <SubLabel>Phone (optional)</SubLabel>
                         <TextInput
                             value={form.respondent_phone}
                             onChange={(e) => setForm({ ...form, respondent_phone: formatPhone(e.target.value) })}
-                            placeholder="Phone: 0300-1234567"
+                            placeholder="03XX-XXXXXXX"
                         />
                     </Field>
                     <Field label="Marriage Details (optional)">
+                        <SubLabel>Marriage Date</SubLabel>
                         <TextInput
                             type="date"
                             value={form.marriage_date}
                             onChange={(e) => setForm({ ...form, marriage_date: e.target.value })}
                             className="mb-2"
                         />
+                        <SubLabel>Nikah Registrar</SubLabel>
                         <TextInput
                             value={form.nikah_registrar}
                             onChange={(e) => setForm({ ...form, nikah_registrar: e.target.value })}
-                            placeholder="Nikah Registrar"
+                            placeholder="e.g. Registrar's name"
                             className="mb-2"
                         />
                         <div className="grid grid-cols-2 gap-2">
-                            <TextInput
-                                value={form.mahr_amount}
-                                onChange={(e) => setForm({ ...form, mahr_amount: e.target.value })}
-                                placeholder="Mehr amount"
-                            />
-                            <TextInput
-                                value={form.children_count}
-                                onChange={(e) => setForm({ ...form, children_count: e.target.value })}
-                                placeholder="Children"
-                            />
+                            <div>
+                                <SubLabel>Mehr Amount</SubLabel>
+                                <TextInput
+                                    value={form.mahr_amount}
+                                    onChange={(e) => setForm({ ...form, mahr_amount: e.target.value })}
+                                    placeholder="e.g. 50,000"
+                                />
+                            </div>
+                            <div>
+                                <SubLabel>Children</SubLabel>
+                                <TextInput
+                                    value={form.children_count}
+                                    onChange={(e) => setForm({ ...form, children_count: e.target.value })}
+                                    placeholder="e.g. 2"
+                                />
+                            </div>
                         </div>
                     </Field>
                     <div className="flex gap-2">
@@ -501,6 +517,8 @@ function CaseDetailModal({ caseId, onClose }) {
 }
 
 export default function Cases() {
+    useEffect(() => setLastModule('dv'), []);
+
     const [wizardOpen, setWizardOpen] = useState(false);
     const [activeCaseId, setActiveCaseId] = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
