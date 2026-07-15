@@ -17,6 +17,7 @@ use App\Models\CaseNotification;
 use App\Models\CaseProceeding;
 use App\Models\CaseTimelineEvent;
 use App\Models\DvCase;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -388,52 +389,14 @@ class DvCaseController extends Controller
     public function notesheet(Request $request, DvCase $case)
     {
         $this->authorizeAccess($request, $case);
-        $case->load(['unionCouncil', 'timeline.actor', 'proceedings.recorder', 'decision']);
+        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'decision']);
 
-        $lines = [];
-        $lines[] = '=== RUNNING NOTESHEET ===';
-        $lines[] = "Case No: {$case->case_no} | Type: ".strtoupper($case->type)." | UC: {$case->unionCouncil->name} | Tehsil: {$case->unionCouncil->tehsil?->name}";
-        $lines[] = "Petitioner: {$case->divorcer_name} | Respondent: {$case->respondent_name}";
-        $lines[] = 'Application Date: '.$case->receipt_date->toDateString().' | Status: '.(DvCaseResource::STATUS_LABELS[$case->status] ?? $case->status);
         $deadline = \Illuminate\Support\Carbon::parse($case->receipt_date)->addDays(90)->startOfDay();
         $daysRemaining = (int) ceil(($deadline->timestamp - \Illuminate\Support\Carbon::today()->timestamp) / 86400);
-        $lines[] = "Days Remaining (90-day period): {$daysRemaining}";
-        $lines[] = '';
+        $statusLabel = DvCaseResource::STATUS_LABELS[$case->status] ?? $case->status;
 
-        if ($case->timeline->isNotEmpty()) {
-            $lines[] = '--- CHRONOLOGICAL PROCEEDINGS ---';
-            foreach ($case->timeline as $i => $t) {
-                $lines[] = ($i + 1).'. ['.$t->event_date->toDateString().'] '.$t->stage.' — '.$t->note.' ('.($t->actor?->name ?? 'System').')';
-            }
-            $lines[] = '';
-        }
-
-        if ($case->proceedings->isNotEmpty()) {
-            $lines[] = '--- HEARING PROCEEDINGS ---';
-            foreach ($case->proceedings as $i => $p) {
-                $lines[] = 'Hearing '.($i + 1)." | {$p->date->toDateString()} | Ref: {$p->proc_no}";
-                $lines[] = '  Petitioner Attendance: '.($p->petitioner_present ? 'Present (Biometric: '.($p->petitioner_biometric ? '✓' : '✗').')' : 'Absent');
-                $lines[] = '  Respondent Attendance: '.($p->respondent_present ? 'Present (Biometric: '.($p->respondent_biometric ? '✓' : '✗').')' : 'Absent');
-                if ($p->pet_statement) $lines[] = "  Petitioner Statement: {$p->pet_statement}";
-                if ($p->res_statement) $lines[] = "  Respondent Statement: {$p->res_statement}";
-                if ($p->reconciliation) $lines[] = "  Reconciliation Effort: {$p->reconciliation}";
-                if ($p->adjourn_reason) $lines[] = "  Adjournment: {$p->adjourn_reason} | Next Hearing: ".($p->next_hearing_date?->toDateString() ?? '—');
-                if ($p->notice_issued) $lines[] = "  Notice Issued: {$p->notice_ref} on ".$p->notice_date?->toDateString();
-                if ($p->adlg_observation) $lines[] = "  ADLG/Chairman Observation: {$p->adlg_observation}";
-                if ($p->adlg_direction) $lines[] = "  ADLG Direction: {$p->adlg_direction}";
-                $lines[] = '';
-            }
-        }
-
-        if ($case->decision) {
-            $lines[] = '--- FINAL DECISION ---';
-            $lines[] = "Decision Type: {$case->decision->type}";
-            $lines[] = "Order No: {$case->decision->order_no} | Date: ".$case->decision->decided_at?->toDateString();
-            $lines[] = 'Decision: '.($case->decision->remarks ?: (DvCaseResource::STATUS_LABELS[$case->decision->type] ?? $case->decision->type));
-        }
-
-        $content = implode("\n", $lines);
-        $filename = "Notesheet_{$case->case_no}.txt";
+        $pdf = Pdf::loadView('pdf.dv-notesheet', compact('case', 'statusLabel', 'daysRemaining'))->setPaper('a4');
+        $filename = "Notesheet_{$case->case_no}.pdf";
 
         AuditLog::create([
             'user_id' => $request->user()->id,
@@ -443,90 +406,18 @@ class DvCaseController extends Controller
             'note' => "Notesheet downloaded: {$case->case_no}",
         ]);
 
-        return response($content, 200, [
-            'Content-Type' => 'text/plain',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+        return $pdf->download($filename);
     }
 
     public function fullCaseFile(Request $request, DvCase $case)
     {
         $this->authorizeAccess($request, $case);
-        $case->load(['unionCouncil', 'timeline.actor', 'proceedings.recorder', 'arbitration', 'decision']);
+        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'arbitration', 'decision']);
 
-        $lines = [];
-        $lines[] = 'GOVERNMENT OF PUNJAB';
-        $lines[] = 'LOCAL GOVERNMENT & COMMUNITY DEVELOPMENT DEPARTMENT';
-        $lines[] = "ARBITRATION COUNCIL — UNION COUNCIL {$case->unionCouncil->name}";
-        $lines[] = "TEHSIL: {$case->unionCouncil->tehsil?->name}";
-        $lines[] = '';
-        $lines[] = str_repeat('=', 60);
-        $lines[] = 'COMPLETE CASE FILE';
-        $lines[] = str_repeat('=', 60);
-        $lines[] = "Case Reference: {$case->case_no}";
-        $lines[] = 'Case Type: '.($case->type === 'divorce' ? 'DIVORCE (Under Section 7, MFLO 1961)' : 'KHULA (Under Section 10, MFLO 1961)');
-        $lines[] = 'Application Date: '.$case->receipt_date->toDateString();
-        $lines[] = 'Status: '.(DvCaseResource::STATUS_LABELS[$case->status] ?? $case->status);
-        $lines[] = 'Generated: '.now()->toDateTimeString();
-        $lines[] = '';
-        $lines[] = 'SECTION 1 — PARTY DETAILS';
-        $lines[] = str_repeat('-', 60);
-        $lines[] = "Petitioner: {$case->divorcer_name}   CNIC: {$case->divorcer_cnic}   Phone: ".($case->divorcer_phone ?: '—');
-        $lines[] = "Respondent: {$case->respondent_name}   CNIC: {$case->respondent_cnic}   Phone: ".($case->respondent_phone ?: '—');
-        if ($case->marriage_date) $lines[] = 'Marriage Date: '.$case->marriage_date->toDateString().'   Nikah Registrar: '.($case->nikah_registrar ?: '—');
-        if ($case->mahr_amount) $lines[] = "Mehr Amount: {$case->mahr_amount}";
-        if ($case->children_count) $lines[] = "Children: {$case->children_count}";
-        if ($case->remarks) $lines[] = "Initial Remarks: {$case->remarks}";
-        $lines[] = '';
-        $lines[] = 'SECTION 2 — CHRONOLOGICAL PROCEEDINGS';
-        $lines[] = str_repeat('-', 60);
-        foreach ($case->timeline as $i => $t) {
-            $lines[] = ($i + 1).'. '.$t->event_date->toDateString()." — {$t->stage}: {$t->note} [By: ".($t->actor?->name ?? 'System').']';
-        }
-        $lines[] = '';
-        $lines[] = 'SECTION 3 — HEARING RECORDS';
-        $lines[] = str_repeat('-', 60);
-        if ($case->proceedings->isEmpty()) {
-            $lines[] = 'No hearings recorded yet.';
-        } else {
-            foreach ($case->proceedings as $i => $p) {
-                $lines[] = 'Hearing '.($i + 1)." | Date: {$p->date->toDateString()} | Ref: {$p->proc_no}";
-                $lines[] = '  Venue: '.($p->venue ?: 'UC Office').' | Chairman: '.($p->chairman_name ?: 'ADLG');
-                $lines[] = '  Attendance — Petitioner: '.($p->petitioner_present ? 'PRESENT' : 'ABSENT').' (Bio: '.($p->petitioner_biometric ? 'Verified' : 'N/A').')'
-                    .'   Respondent: '.($p->respondent_present ? 'PRESENT' : 'ABSENT').' (Bio: '.($p->respondent_biometric ? 'Verified' : 'N/A').')';
-                if ($p->pet_rep_name) $lines[] = "  Petitioner Representative: {$p->pet_rep_name} CNIC: {$p->pet_rep_cnic}";
-                if ($p->res_rep_name) $lines[] = "  Respondent Representative: {$p->res_rep_name} CNIC: {$p->res_rep_cnic}";
-                if ($p->pet_statement) $lines[] = "  Petitioner Statement: {$p->pet_statement}";
-                if ($p->res_statement) $lines[] = "  Respondent Statement: {$p->res_statement}";
-                if ($p->reconciliation) $lines[] = "  Reconciliation Effort: {$p->reconciliation}";
-                if ($p->adjourn_reason) $lines[] = "  Adjourned: {$p->adjourn_reason} | Next Hearing: ".($p->next_hearing_date?->toDateString() ?? '—');
-                if ($p->notice_issued) $lines[] = "  Notice: {$p->notice_ref} issued on ".$p->notice_date?->toDateString()." — {$p->notice_details}";
-                if ($p->adlg_observation) $lines[] = "  Chairman Observation: {$p->adlg_observation}";
-                if ($p->adlg_direction) $lines[] = "  Chairman Direction: {$p->adlg_direction}";
-                $lines[] = '';
-            }
-        }
-        if ($case->arbitration) {
-            $lines[] = 'SECTION 4 — ARBITRATION COUNCIL CONSTITUTION';
-            $lines[] = str_repeat('-', 60);
-            $lines[] = "Husband-side Rep: {$case->arbitration->husband_rep_name}   CNIC: {$case->arbitration->husband_rep_cnic}   Phone: ".($case->arbitration->husband_rep_phone ?: '—').'   Relation: '.($case->arbitration->husband_rep_designation ?: '—');
-            $lines[] = "Wife-side Rep: {$case->arbitration->wife_rep_name}   CNIC: {$case->arbitration->wife_rep_cnic}   Phone: ".($case->arbitration->wife_rep_phone ?: '—').'   Relation: '.($case->arbitration->wife_rep_designation ?: '—');
-            $lines[] = '';
-        }
-        if ($case->decision) {
-            $lines[] = 'SECTION 5 — FINAL ORDER / DECISION';
-            $lines[] = str_repeat('=', 60);
-            $lines[] = "Decision: {$case->decision->type}";
-            $lines[] = "Order No: {$case->decision->order_no}   Date: ".$case->decision->decided_at?->toDateString();
-            $lines[] = '';
-            $lines[] = $case->decision->remarks ?: (DvCaseResource::STATUS_LABELS[$case->decision->type] ?? $case->decision->type);
-            $lines[] = '';
-            $lines[] = 'Chairman Arbitration Council / ADLG';
-            $lines[] = 'Signature: ___________________   Stamp: ___________________';
-        }
+        $statusLabel = DvCaseResource::STATUS_LABELS[$case->status] ?? $case->status;
 
-        $content = implode("\n", $lines);
-        $filename = "{$case->case_no}_Complete_Case_File.txt";
+        $pdf = Pdf::loadView('pdf.dv-case-file', compact('case', 'statusLabel'))->setPaper('a4');
+        $filename = "{$case->case_no}_Complete_Case_File.pdf";
 
         AuditLog::create([
             'user_id' => $request->user()->id,
@@ -536,10 +427,7 @@ class DvCaseController extends Controller
             'note' => "Full case file downloaded: {$case->case_no}",
         ]);
 
-        return response($content, 200, [
-            'Content-Type' => 'text/plain',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+        return $pdf->download($filename);
     }
 
     public function export(Request $request)
