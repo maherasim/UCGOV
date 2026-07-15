@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import ActivityTimeline from '../../components/ActivityTimeline';
+import AdlgAiChat from '../../components/AdlgAiChat';
 import { Card, FullScreenSpinner, KpiCard } from '../../components/ui';
 
 const QUICK_ACTIONS = [
@@ -89,6 +90,11 @@ export default function Dashboard() {
                         </div>
                     </Card>
                 </div>
+            </div>
+
+            <div className="mt-6">
+                <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-ink-muted">AI Assistant</h2>
+                <AdlgAiChat />
             </div>
         </div>
     );

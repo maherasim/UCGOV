@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/Avatar';
+import LiveLocationTracker from '../components/LiveLocationTracker';
 import { APP_BASE_PATH } from '../utils/basePath';
 
 const NAV_GROUPS = [
@@ -109,6 +110,7 @@ export default function SecLayout() {
 
     return (
         <div className="flex min-h-screen bg-surface-subtle">
+            <LiveLocationTracker />
             <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">

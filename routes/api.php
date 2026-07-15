@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdlgAiController;
 use App\Http\Controllers\Api\AdlgController;
 use App\Http\Controllers\Api\AdlgDashboardController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Api\GeographyController;
 use App\Http\Controllers\Api\InquiryController;
 use App\Http\Controllers\Api\LbrCaseController;
 use App\Http\Controllers\Api\NewsletterController;
+use App\Http\Controllers\Api\PerformaController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileSubmissionController;
 use App\Http\Controllers\Api\SecretaryController;
@@ -75,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:adlg')->prefix('adlg')->group(function () {
         Route::get('/dashboard', [AdlgDashboardController::class, 'index']);
+        Route::post('/ai/ask', [AdlgAiController::class, 'ask']);
 
         Route::get('/union-councils', [UnionCouncilController::class, 'index']);
         Route::post('/union-councils', [UnionCouncilController::class, 'store']);
@@ -84,6 +87,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/secretaries', [SecretaryController::class, 'store']);
         Route::put('/secretaries/{secretary}', [SecretaryController::class, 'update']);
         Route::patch('/secretaries/{secretary}/toggle-active', [SecretaryController::class, 'toggleActive']);
+        Route::post('/secretaries/{secretary}/charges', [SecretaryController::class, 'assignAdditionalCharge']);
+        Route::delete('/secretaries/{secretary}/charges/{unionCouncil}', [SecretaryController::class, 'removeAdditionalCharge']);
 
         Route::get('/cases', [DvCaseController::class, 'index']);
         Route::get('/cases/{case}', [DvCaseController::class, 'show']);
@@ -102,10 +107,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/inquiries', [InquiryController::class, 'store']);
 
         Route::get('/attendance', [AttendanceController::class, 'indexForAdlg']);
+        Route::get('/attendance/analytics-export', [AttendanceController::class, 'analyticsExportForAdlg']);
         Route::get('/movement-log', [AttendanceController::class, 'movementIndexForAdlg']);
+        Route::get('/movement-log/export', [AttendanceController::class, 'movementExportForAdlg']);
+        Route::get('/live-locations', [AttendanceController::class, 'liveLocations']);
 
         Route::get('/reports', [DailyReportController::class, 'indexForAdlg']);
         Route::patch('/reports/{report}/mark-reviewed', [DailyReportController::class, 'markReviewed']);
+
+        Route::get('/performas', [PerformaController::class, 'indexForAdlg']);
+        Route::post('/performas', [PerformaController::class, 'store']);
+        Route::get('/performas/{performa}/responses', [PerformaController::class, 'responses']);
+        Route::get('/performas/{performa}/template', [PerformaController::class, 'downloadTemplateForAdlg']);
 
         Route::get('/dklic-documents', [DklicKnowledgeController::class, 'index']);
         Route::post('/dklic-documents/{document}/view', [DklicKnowledgeController::class, 'view']);
@@ -124,9 +137,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/attendance/mark-in', [AttendanceController::class, 'markIn']);
         Route::get('/attendance', [AttendanceController::class, 'myHistory']);
         Route::post('/attendance/log-movement', [AttendanceController::class, 'logMovement']);
+        Route::post('/attendance/live-location', [AttendanceController::class, 'updateLiveLocation']);
 
         Route::post('/reports', [DailyReportController::class, 'store']);
         Route::get('/reports', [DailyReportController::class, 'myHistory']);
+
+        Route::get('/performas', [PerformaController::class, 'indexForSecretary']);
+        Route::post('/performas/{performa}/respond-form', [PerformaController::class, 'respondForm']);
+        Route::post('/performas/{performa}/respond-excel', [PerformaController::class, 'respondExcel']);
+        Route::get('/performas/{performa}/template', [PerformaController::class, 'downloadTemplateForSecretary']);
 
         Route::get('/cases', [DvCaseController::class, 'indexForSecretary']);
         Route::get('/cases/{case}', [DvCaseController::class, 'showForSecretary']);

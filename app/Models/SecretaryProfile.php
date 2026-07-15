@@ -13,12 +13,17 @@ class SecretaryProfile extends Model
         'union_council_id',
         'father_name',
         'profile_completed_at',
+        'live_lat',
+        'live_lng',
+        'live_accuracy_meters',
+        'live_updated_at',
     ];
 
     protected function casts(): array
     {
         return [
             'profile_completed_at' => 'datetime',
+            'live_updated_at' => 'datetime',
         ];
     }
 

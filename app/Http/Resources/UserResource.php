@@ -35,6 +35,13 @@ class UserResource extends JsonResource
                 'geofence_set' => $this->secretaryProfile->unionCouncil
                     ? ($this->secretaryProfile->unionCouncil->lat !== null && $this->secretaryProfile->unionCouncil->lng !== null)
                     : null,
+                'additional_charges' => $this->secretaryProfile->relationLoaded('additionalCharges')
+                    ? $this->secretaryProfile->additionalCharges->map(fn ($c) => [
+                        'union_council_id' => $c->union_council_id,
+                        'union_council' => $c->unionCouncil?->name,
+                        'assigned_at' => $c->assigned_at,
+                    ])
+                    : [],
             ]),
         ];
     }

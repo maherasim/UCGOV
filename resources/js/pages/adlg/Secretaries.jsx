@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExclamationTriangleIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, IdentificationIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import {
@@ -155,10 +155,99 @@ function SecretaryFormModal({ open, onClose, secretary }) {
     );
 }
 
+function ChargesModal({ secretary, onClose }) {
+    const queryClient = useQueryClient();
+    const [selected, setSelected] = useState('');
+
+    const ucs = useQuery({
+        queryKey: ['adlg-union-councils'],
+        queryFn: () => client.get('/api/adlg/union-councils').then((r) => r.data.data),
+        enabled: !!secretary,
+    });
+
+    const assignMutation = useMutation({
+        mutationFn: (unionCouncilId) => client.post(`/api/adlg/secretaries/${secretary.id}/charges`, { union_council_id: unionCouncilId }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adlg-secretaries'] });
+            setSelected('');
+        },
+    });
+
+    const removeMutation = useMutation({
+        mutationFn: (unionCouncilId) => client.delete(`/api/adlg/secretaries/${secretary.id}/charges/${unionCouncilId}`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['adlg-secretaries'] }),
+    });
+
+    if (!secretary) return null;
+
+    const charges = secretary.secretary_profile?.additional_charges || [];
+    const chargedIds = new Set(charges.map((c) => c.union_council_id));
+    const availableUcs = (ucs.data || []).filter(
+        (u) => u.id !== secretary.secretary_profile?.union_council_id && !chargedIds.has(u.id)
+    );
+
+    return (
+        <Modal
+            open={!!secretary}
+            onClose={onClose}
+            title="Additional UC Charges"
+            subtitle={`${secretary.name} · Primary: ${secretary.secretary_profile?.union_council || '—'}`}
+        >
+            <div className="mb-4">
+                {charges.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-ink-muted">No additional charges assigned.</p>
+                ) : (
+                    <ul className="space-y-2">
+                        {charges.map((c) => (
+                            <li key={c.union_council_id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                                <span className="text-sm font-medium text-ink">{c.union_council}</span>
+                                <button
+                                    onClick={() => removeMutation.mutate(c.union_council_id)}
+                                    disabled={removeMutation.isPending}
+                                    className="text-xs font-semibold text-danger hover:underline"
+                                >
+                                    Remove
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            <Field label="Assign Additional UC">
+                <div className="flex gap-2">
+                    <Select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1">
+                        <option value="">Select UC…</option>
+                        {availableUcs.map((u) => (
+                            <option key={u.id} value={u.id}>
+                                {u.name}
+                                {u.secretary ? ` (covered by ${u.secretary})` : ' (vacant)'}
+                            </option>
+                        ))}
+                    </Select>
+                    <Button
+                        type="button"
+                        disabled={!selected || assignMutation.isPending}
+                        onClick={() => assignMutation.mutate(selected)}
+                    >
+                        Assign
+                    </Button>
+                </div>
+            </Field>
+            <ErrorText>{assignMutation.error?.response?.data?.message}</ErrorText>
+            <p className="mt-2 text-xs text-ink-muted">
+                When this secretary marks attendance at their primary UC, a covering remark is automatically logged for each
+                additional-charge UC too.
+            </p>
+        </Modal>
+    );
+}
+
 export default function Secretaries() {
     const queryClient = useQueryClient();
     const [formTarget, setFormTarget] = useState(null);
     const [toggleTarget, setToggleTarget] = useState(null);
+    const [chargesTarget, setChargesTarget] = useState(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['adlg-secretaries'],
@@ -203,6 +292,11 @@ export default function Secretaries() {
                                         <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
                                     </span>
                                 )}
+                                {row.secretary_profile?.additional_charges?.length > 0 && (
+                                    <span title={`Additional charge: ${row.secretary_profile.additional_charges.map((c) => c.union_council).join(', ')}`}>
+                                        <Badge tone="info">+{row.secretary_profile.additional_charges.length}</Badge>
+                                    </span>
+                                )}
                             </div>
                         ),
                         5: (data, row) => (
@@ -212,6 +306,14 @@ export default function Secretaries() {
                         ),
                         6: (data, row) => (
                             <div className="flex justify-end gap-1">
+                                <button
+                                    onClick={() => setChargesTarget(row.id)}
+                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                    aria-label="Additional Charges"
+                                    title="Additional UC Charges"
+                                >
+                                    <IdentificationIcon className="h-4 w-4" />
+                                </button>
                                 <button
                                     onClick={() => setFormTarget(row)}
                                     className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
@@ -231,6 +333,8 @@ export default function Secretaries() {
                 secretary={formTarget?.id ? formTarget : null}
                 onClose={() => setFormTarget(null)}
             />
+
+            <ChargesModal secretary={data.find((s) => s.id === chargesTarget)} onClose={() => setChargesTarget(null)} />
 
             <ConfirmDialog
                 open={!!toggleTarget}

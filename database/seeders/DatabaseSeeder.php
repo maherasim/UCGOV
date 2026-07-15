@@ -30,15 +30,17 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Real Punjab geography (Divisions/Districts/Tehsils/Union Councils) from the
-        // Government of Punjab's official Union Councils spreadsheet — see
-        // PunjabGeographySeeder for data-quality notes. Fake demo Secretaries/Cases are
-        // deliberately not seeded here: real ADLG/Secretary accounts get created through
-        // the app itself. GeographySeeder/UnionCouncilSeeder/SecretarySeeder/DvCaseSeeder
-        // still exist for local demo use — run them manually via
-        // `php artisan db:seed --class=SecretarySeeder` etc. if you want sample data.
+        // Real Punjab geography (Divisions/Districts/Tehsils/Union Councils), real ADLG
+        // officers, and real UC GPS coordinates, all from official Government of Punjab
+        // source lists — see PunjabGeographySeeder, AdlgOfficerSeeder, and UcGpsSeeder for
+        // data-quality notes. Fake demo Secretaries/Cases are deliberately not seeded here:
+        // those get created through the app itself. GeographySeeder/UnionCouncilSeeder/
+        // SecretarySeeder/DvCaseSeeder still exist for local demo use — run them manually
+        // via `php artisan db:seed --class=SecretarySeeder` etc. if you want sample data.
         $this->call([
             PunjabGeographySeeder::class,
+            AdlgOfficerSeeder::class,
+            UcGpsSeeder::class,
         ]);
     }
 }

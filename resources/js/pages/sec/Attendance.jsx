@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FingerPrintIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import { useAuth } from '../../context/AuthContext';
 import { Badge, Button, Card, ErrorText, Field, Modal, Select, Textarea } from '../../components/ui';
 
 const MOVEMENT_REASONS = ['Field Visit', 'Tehsil Office Meeting', 'Court Hearing', 'Document Delivery', 'Other'];
@@ -70,8 +71,10 @@ function LogMovementModal({ open, onClose }) {
 
 export default function Attendance() {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
     const [movementOpen, setMovementOpen] = useState(false);
     const [markError, setMarkError] = useState('');
+    const additionalCharges = user?.secretary_profile?.additional_charges || [];
 
     const { data, isLoading } = useQuery({
         queryKey: ['sec-attendance'],
@@ -101,6 +104,14 @@ export default function Attendance() {
 
     return (
         <div>
+            {additionalCharges.length > 0 && (
+                <div className="mb-4 rounded-xl border border-info/30 bg-blue-50 px-4 py-3 text-sm text-info">
+                    <span className="font-semibold">📍 Additional charge:</span> you also cover{' '}
+                    {additionalCharges.map((c) => c.union_council).join(', ')}. Marking attendance here auto-logs a covering remark
+                    there too.
+                </div>
+            )}
+
             <div className="mb-6 flex flex-col items-center rounded-2xl border border-border bg-surface p-8 text-center">
                 {todayRecord ? (
                     <>
