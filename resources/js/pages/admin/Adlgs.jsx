@@ -15,6 +15,7 @@ import {
     PasswordInput,
     Select,
     TextInput,
+    UsernameTag,
 } from '../../components/ui';
 import { formatCnic, formatPhone } from '../../utils/format';
 
@@ -186,7 +187,7 @@ export default function Adlgs() {
                     data={data}
                     columns={[
                         { title: 'Name', data: 'name' },
-                        { title: 'Username', data: 'username', render: (d) => `@${d}` },
+                        { title: 'Username', data: 'username' },
                         { title: 'Tehsil', data: 'adlg_profile.tehsil', defaultContent: '—' },
                         { title: 'Grade', data: 'adlg_profile.grade', defaultContent: '—' },
                         { title: 'CNIC', data: 'cnic', defaultContent: '—' },
@@ -195,6 +196,7 @@ export default function Adlgs() {
                         { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
                     ]}
                     slots={{
+                        1: (data) => <UsernameTag username={data} />,
                         6: (data, row) => (
                             <button onClick={() => setToggleTarget(row)}>
                                 <Badge tone={data ? 'success' : 'danger'}>{data ? 'Active' : 'Inactive'}</Badge>

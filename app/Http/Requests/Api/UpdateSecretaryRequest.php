@@ -23,7 +23,7 @@ class UpdateSecretaryRequest extends FormRequest
                 Rule::exists('union_councils', 'id')->where('tehsil_id', $tehsilId),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('users', 'username')->ignore($userId)],
+            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($userId)],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
             'cnic' => ['nullable', 'regex:/^\d{5}-\d{7}-\d{1}$/'],
             'phone' => ['nullable', 'regex:/^\d{4}-\d{7}$/'],

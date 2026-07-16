@@ -77,7 +77,17 @@
         </table>
     @endif
 
-    <div class="section-header">SECTION 3 — HEARING RECORDS</div>
+    @if($case->arbitration)
+        <div class="section-header">SECTION 3 — ARBITRATION COUNCIL CONSTITUTION</div>
+        <table class="kv">
+            <tr><td class="label">Husband-side Representative</td><td class="value">{{ $case->arbitration->husband_rep_name }} — CNIC {{ $case->arbitration->husband_rep_cnic }}</td></tr>
+            <tr><td class="label">Husband-side Phone / Relation</td><td class="value">{{ $case->arbitration->husband_rep_phone ?: '—' }} / {{ $case->arbitration->husband_rep_designation ?: '—' }}</td></tr>
+            <tr><td class="label">Wife-side Representative</td><td class="value">{{ $case->arbitration->wife_rep_name }} — CNIC {{ $case->arbitration->wife_rep_cnic }}</td></tr>
+            <tr><td class="label">Wife-side Phone / Relation</td><td class="value">{{ $case->arbitration->wife_rep_phone ?: '—' }} / {{ $case->arbitration->wife_rep_designation ?: '—' }}</td></tr>
+        </table>
+    @endif
+
+    <div class="section-header">SECTION 4 — HEARING RECORDS</div>
     @if($case->proceedings->isEmpty())
         <p style="font-size: 9.5px; color: #6B7280;">No hearings recorded yet.</p>
     @else
@@ -98,16 +108,6 @@
                 @if($p->adlg_direction)<div class="hearing-row"><span class="k">Chairman Direction:</span> {{ $p->adlg_direction }}</div>@endif
             </div>
         @endforeach
-    @endif
-
-    @if($case->arbitration)
-        <div class="section-header">SECTION 4 — ARBITRATION COUNCIL CONSTITUTION</div>
-        <table class="kv">
-            <tr><td class="label">Husband-side Representative</td><td class="value">{{ $case->arbitration->husband_rep_name }} — CNIC {{ $case->arbitration->husband_rep_cnic }}</td></tr>
-            <tr><td class="label">Husband-side Phone / Relation</td><td class="value">{{ $case->arbitration->husband_rep_phone ?: '—' }} / {{ $case->arbitration->husband_rep_designation ?: '—' }}</td></tr>
-            <tr><td class="label">Wife-side Representative</td><td class="value">{{ $case->arbitration->wife_rep_name }} — CNIC {{ $case->arbitration->wife_rep_cnic }}</td></tr>
-            <tr><td class="label">Wife-side Phone / Relation</td><td class="value">{{ $case->arbitration->wife_rep_phone ?: '—' }} / {{ $case->arbitration->wife_rep_designation ?: '—' }}</td></tr>
-        </table>
     @endif
 
     @if($case->decision)

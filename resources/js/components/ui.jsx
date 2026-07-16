@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { DocumentIcon, EyeIcon, EyeSlashIcon, PaperClipIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, ClipboardDocumentIcon, DocumentIcon, EyeIcon, EyeSlashIcon, PaperClipIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export function Button({ variant = 'primary', className = '', ...props }) {
     const variants = {
@@ -29,6 +29,44 @@ export function Badge({ tone = 'neutral', children }) {
     return (
         <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}>
             {children}
+        </span>
+    );
+}
+
+/**
+ * The "@" is purely a visual affordance (login screens don't want it) — `select-none` keeps
+ * it out of the browser's text selection so a drag-select/copy over this cell only ever
+ * copies the real username. The copy button is the same guarantee for a single click.
+ */
+export function UsernameTag({ username }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async (e) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(username);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch {
+            // Clipboard API unavailable (e.g. insecure context) — nothing to fall back to.
+        }
+    };
+
+    return (
+        <span className="group inline-flex items-center gap-1">
+            <span className="font-mono text-[13px] text-ink">
+                <span className="select-none text-ink-faint">@</span>
+                {username}
+            </span>
+            <button
+                type="button"
+                onClick={copy}
+                className="rounded p-0.5 text-ink-faint opacity-0 transition group-hover:opacity-100 hover:text-primary-600"
+                title={copied ? 'Copied!' : 'Copy username'}
+                aria-label="Copy username"
+            >
+                {copied ? <CheckIcon className="h-3.5 w-3.5 text-primary-600" /> : <ClipboardDocumentIcon className="h-3.5 w-3.5" />}
+            </button>
         </span>
     );
 }

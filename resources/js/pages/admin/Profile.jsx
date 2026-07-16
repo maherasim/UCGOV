@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { AvatarUpload } from '../../components/Avatar';
-import { Button, Card, ErrorText, Field, Modal, TextInput } from '../../components/ui';
+import { Button, Card, ErrorText, Field, Modal, TextInput, UsernameTag } from '../../components/ui';
 
 function ResetPasswordModal({ target, onClose }) {
     const [password, setPassword] = useState('');
@@ -120,7 +120,9 @@ export default function Profile() {
                         <li key={u.id} className="flex items-center justify-between px-4 py-3">
                             <div>
                                 <div className="text-sm font-medium text-ink">{u.name}</div>
-                                <div className="text-xs text-ink-muted">@{u.username}</div>
+                                <div className="text-xs text-ink-muted">
+                                    <UsernameTag username={u.username} />
+                                </div>
                             </div>
                             <Button variant="ghost" onClick={() => setResetTarget(u)}>
                                 🔒 Reset Password

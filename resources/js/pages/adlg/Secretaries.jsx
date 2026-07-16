@@ -15,6 +15,7 @@ import {
     PasswordInput,
     Select,
     TextInput,
+    UsernameTag,
 } from '../../components/ui';
 import { formatCnic, formatPhone } from '../../utils/format';
 
@@ -330,7 +331,7 @@ export default function Secretaries() {
                     data={data}
                     columns={[
                         { title: 'Name', data: 'name' },
-                        { title: 'Username', data: 'username', render: (d) => `@${d}` },
+                        { title: 'Username', data: 'username' },
                         { title: 'Union Council', data: 'secretary_profile.union_council', defaultContent: '—' },
                         { title: 'CNIC', data: 'cnic', defaultContent: '—' },
                         { title: 'Phone', data: 'phone', defaultContent: '—' },
@@ -338,6 +339,7 @@ export default function Secretaries() {
                         { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
                     ]}
                     slots={{
+                        1: (data) => <UsernameTag username={data} />,
                         2: (data, row) => (
                             <div className="flex items-center gap-1.5">
                                 <span>{data || '—'}</span>

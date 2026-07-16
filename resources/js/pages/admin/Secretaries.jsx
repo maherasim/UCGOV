@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EyeIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
-import { Badge, Card, EmptyState, Modal, Pagination, Spinner, TextInput } from '../../components/ui';
+import { Badge, Card, EmptyState, Modal, Pagination, Spinner, TextInput, UsernameTag } from '../../components/ui';
 import { formatCnic, formatPhone } from '../../utils/format';
 
 function SecretaryDetailModal({ secretaryId, onClose }) {
@@ -28,7 +28,9 @@ function SecretaryDetailModal({ secretaryId, onClose }) {
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <dt className="text-[11px] font-bold uppercase text-ink-muted">Username</dt>
-                            <dd className="mt-0.5 font-medium text-ink">@{secretary.username}</dd>
+                            <dd className="mt-0.5">
+                                <UsernameTag username={secretary.username} />
+                            </dd>
                         </div>
                         <div>
                             <dt className="text-[11px] font-bold uppercase text-ink-muted">Status</dt>
@@ -158,7 +160,9 @@ export default function Secretaries() {
                                     {secretaries.map((sec) => (
                                         <tr key={sec.id} className="hover:bg-surface-subtle/60">
                                             <td className="px-4 py-3 font-medium text-ink">{sec.name}</td>
-                                            <td className="px-4 py-3 text-ink-muted">@{sec.username}</td>
+                                            <td className="px-4 py-3">
+                                                <UsernameTag username={sec.username} />
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-ink-muted">{sec.secretary_profile?.union_council || '—'}</span>

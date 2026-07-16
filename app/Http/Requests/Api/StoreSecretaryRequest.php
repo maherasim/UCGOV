@@ -22,7 +22,7 @@ class StoreSecretaryRequest extends FormRequest
                 Rule::exists('union_councils', 'id')->where('tehsil_id', $tehsilId),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'alpha_dash', 'unique:users,username'],
+            'username' => ['required', 'string', 'max:255', 'unique:users,username'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
             'cnic' => ['nullable', 'regex:/^\d{5}-\d{7}-\d{1}$/'],
