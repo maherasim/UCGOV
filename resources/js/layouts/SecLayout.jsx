@@ -10,12 +10,14 @@ import {
     Cog6ToothIcon,
     ChevronDownIcon,
     ArrowRightStartOnRectangleIcon,
+    MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/Avatar';
 import LiveLocationTracker from '../components/LiveLocationTracker';
 import NotificationBell from '../components/NotificationBell';
 import { APP_BASE_PATH } from '../utils/basePath';
+import { MovementLogProvider, useMovementLog } from '../context/MovementLogContext';
 
 const NAV_GROUPS = [
     {
@@ -47,6 +49,25 @@ const NAV_GROUPS = [
 ];
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+
+function MovementQuickAction() {
+    const { openMovementLog } = useMovementLog();
+
+    return (
+        <div className="mt-3 rounded-xl border border-white/15 bg-white/5 p-3">
+            <button
+                onClick={() => openMovementLog(false)}
+                className="flex w-full items-center gap-2.5 rounded-lg bg-accent-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
+            >
+                <MapPinIcon className="h-5 w-5 flex-shrink-0" />
+                Log Movement
+            </button>
+            <p className="mt-2 px-0.5 text-[10.5px] leading-snug text-white/50">
+                Leaving your UC office during working hours? Log it here so it's on record.
+            </p>
+        </div>
+    );
+}
 
 function UserMenu() {
     const { user, logout } = useAuth();
@@ -109,68 +130,71 @@ export default function SecLayout() {
     const current = ALL_ITEMS.find((i) => location.pathname.endsWith(i.to));
 
     return (
-        <div className="flex min-h-screen bg-surface-subtle">
-            <LiveLocationTracker />
-            <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
-                <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">
-                        <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Government of Punjab" className="h-full w-full object-contain" />
-                    </div>
-                    <div>
-                        <div className="text-sm font-bold leading-tight">UC Governance</div>
-                        <div className="text-[11px] text-white/60">Govt. of Punjab</div>
-                    </div>
-                </div>
-
-                <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-                    {NAV_GROUPS.map((group) => (
-                        <div key={group.label}>
-                            <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-white/40">
-                                {group.label}
-                            </div>
-                            <div className="space-y-0.5">
-                                {group.items.map((item) => (
-                                    <NavLink
-                                        key={item.to}
-                                        to={item.to}
-                                        className={({ isActive }) =>
-                                            `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                                                isActive
-                                                    ? 'bg-accent-500 text-white shadow-sm'
-                                                    : 'text-white/75 hover:bg-white/10 hover:text-white'
-                                            }`
-                                        }
-                                    >
-                                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                                        {item.label}
-                                    </NavLink>
-                                ))}
-                            </div>
+        <MovementLogProvider>
+            <div className="flex min-h-screen bg-surface-subtle">
+                <LiveLocationTracker />
+                <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
+                    <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">
+                            <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Government of Punjab" className="h-full w-full object-contain" />
                         </div>
-                    ))}
-                </nav>
+                        <div>
+                            <div className="text-sm font-bold leading-tight">UC Governance</div>
+                            <div className="text-[11px] text-white/60">Govt. of Punjab</div>
+                        </div>
+                    </div>
 
-                <div className="border-t border-white/10 px-5 py-4 text-[10px] text-white/40">
-                    UC Governance Platform v1.0 · Secretary
+                    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+                        {NAV_GROUPS.map((group) => (
+                            <div key={group.label}>
+                                <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                                    {group.label}
+                                </div>
+                                <div className="space-y-0.5">
+                                    {group.items.map((item) => (
+                                        <NavLink
+                                            key={item.to}
+                                            to={item.to}
+                                            className={({ isActive }) =>
+                                                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                                                    isActive
+                                                        ? 'bg-accent-500 text-white shadow-sm'
+                                                        : 'text-white/75 hover:bg-white/10 hover:text-white'
+                                                }`
+                                            }
+                                        >
+                                            <item.icon className="h-5 w-5 flex-shrink-0" />
+                                            {item.label}
+                                        </NavLink>
+                                    ))}
+                                </div>
+                                {group.label === 'Daily Duties' && <MovementQuickAction />}
+                            </div>
+                        ))}
+                    </nav>
+
+                    <div className="border-t border-white/10 px-5 py-4 text-[10px] text-white/40">
+                        UC Governance Platform v1.0 · Secretary
+                    </div>
+                </aside>
+
+                <div className="flex min-h-screen flex-1 flex-col">
+                    <header className="flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-3.5">
+                        <div>
+                            <h1 className="text-base font-bold text-ink">{current?.label || 'Dashboard'}</h1>
+                            <p className="text-xs text-ink-muted">Union Council Governance &amp; Administration</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <NotificationBell />
+                            <div className="h-6 w-px bg-border" />
+                            <UserMenu />
+                        </div>
+                    </header>
+                    <main className="flex-1 p-6">
+                        <Outlet />
+                    </main>
                 </div>
-            </aside>
-
-            <div className="flex min-h-screen flex-1 flex-col">
-                <header className="flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-3.5">
-                    <div>
-                        <h1 className="text-base font-bold text-ink">{current?.label || 'Dashboard'}</h1>
-                        <p className="text-xs text-ink-muted">Union Council Governance &amp; Administration</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <NotificationBell />
-                        <div className="h-6 w-px bg-border" />
-                        <UserMenu />
-                    </div>
-                </header>
-                <main className="flex-1 p-6">
-                    <Outlet />
-                </main>
             </div>
-        </div>
+        </MovementLogProvider>
     );
 }

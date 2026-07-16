@@ -52,19 +52,36 @@ class SecretaryMasterSeeder extends Seeder
 
         $data = json_decode(file_get_contents($path), true);
 
+        // Pre-load every lookup once instead of 2 queries per row (~6,700 rows total) — the
+        // per-row version worked but took several minutes on remote hosting purely from
+        // network round-trip latency, not actual data volume.
+        $tehsilIdByKey = Tehsil::with('district')->get()
+            ->mapWithKeys(fn ($t) => ["{$t->district->name}|{$t->name}" => $t->id]);
+
+        $ucByKey = UnionCouncil::select('id', 'tehsil_id', 'uc_no', 'name')->get()
+            ->mapWithKeys(fn ($uc) => ["{$uc->tehsil_id}|{$uc->uc_no}" => $uc]);
+
+        // Keyed by union_council_id -> secretary_profile_id — doubles as the "already
+        // assigned" check and the source for linking additional charges to their owner,
+        // whether that profile already existed or gets created in the loop below.
+        $profileIdByUcId = SecretaryProfile::whereNotNull('union_council_id')
+            ->pluck('id', 'union_council_id')->all();
+
         $created = 0;
         $alreadyAssigned = 0;
         $missingTehsilOrUc = 0;
 
         foreach ($data['primaries'] as $row) {
-            $uc = $this->resolveUc($row['division'], $row['district'], $row['tehsil'], $row['ucNo']);
+            $tehsilId = $tehsilIdByKey["{$row['district']}|{$row['tehsil']}"] ?? null;
+            $uc = $tehsilId ? ($ucByKey["{$tehsilId}|{$row['ucNo']}"] ?? null) : null;
+
             if (! $uc) {
                 $missingTehsilOrUc++;
 
                 continue;
             }
 
-            if (SecretaryProfile::where('union_council_id', $uc->id)->exists()) {
+            if (isset($profileIdByUcId[$uc->id])) {
                 $alreadyAssigned++;
 
                 continue;
@@ -84,11 +101,12 @@ class SecretaryMasterSeeder extends Seeder
                 'first_login' => true,
             ]);
 
-            SecretaryProfile::create([
+            $profile = SecretaryProfile::create([
                 'user_id' => $user->id,
                 'union_council_id' => $uc->id,
             ]);
 
+            $profileIdByUcId[$uc->id] = $profile->id;
             $created++;
         }
 
@@ -96,19 +114,21 @@ class SecretaryMasterSeeder extends Seeder
         $chargesSkipped = 0;
 
         foreach ($data['additionalCharges'] as $row) {
-            $ownerUc = $this->resolveUc(null, $row['ownerDistrict'], $row['ownerTehsil'], $row['ownerUcNo']);
-            $ownerProfile = $ownerUc ? SecretaryProfile::where('union_council_id', $ownerUc->id)->first() : null;
+            $ownerTehsilId = $tehsilIdByKey["{$row['ownerDistrict']}|{$row['ownerTehsil']}"] ?? null;
+            $ownerUc = $ownerTehsilId ? ($ucByKey["{$ownerTehsilId}|{$row['ownerUcNo']}"] ?? null) : null;
+            $ownerProfileId = $ownerUc ? ($profileIdByUcId[$ownerUc->id] ?? null) : null;
 
-            $chargeUc = $this->resolveUc(null, $row['chargeDistrict'], $row['chargeTehsil'], $row['chargeUcNo']);
+            $chargeTehsilId = $tehsilIdByKey["{$row['chargeDistrict']}|{$row['chargeTehsil']}"] ?? null;
+            $chargeUc = $chargeTehsilId ? ($ucByKey["{$chargeTehsilId}|{$row['chargeUcNo']}"] ?? null) : null;
 
-            if (! $ownerProfile || ! $chargeUc) {
+            if (! $ownerProfileId || ! $chargeUc) {
                 $chargesSkipped++;
 
                 continue;
             }
 
             SecretaryUcCharge::firstOrCreate(
-                ['secretary_profile_id' => $ownerProfile->id, 'union_council_id' => $chargeUc->id],
+                ['secretary_profile_id' => $ownerProfileId, 'union_council_id' => $chargeUc->id],
                 ['assigned_at' => now()]
             );
 
@@ -120,18 +140,5 @@ class SecretaryMasterSeeder extends Seeder
             "unmatched tehsil/UC (skipped): {$missingTehsilOrUc} | additional charges created: {$chargesCreated} | ".
             "additional charges skipped: {$chargesSkipped}"
         );
-    }
-
-    protected function resolveUc(?string $division, string $district, string $tehsil, int $ucNo): ?UnionCouncil
-    {
-        $tehsilModel = Tehsil::whereHas('district', function ($q) use ($district) {
-            $q->where('name', $district);
-        })->where('name', $tehsil)->first();
-
-        if (! $tehsilModel) {
-            return null;
-        }
-
-        return UnionCouncil::where('tehsil_id', $tehsilModel->id)->where('uc_no', $ucNo)->first();
     }
 }

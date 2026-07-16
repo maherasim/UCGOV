@@ -1,81 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FingerPrintIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { FingerPrintIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { useAuth } from '../../context/AuthContext';
 import { setLastModule } from '../../utils/lastModule';
-import { Badge, Button, Card, ErrorText, Field, Modal, Select, Textarea } from '../../components/ui';
-
-const MOVEMENT_REASONS = ['Field Visit', 'Tehsil Office Meeting', 'Court Hearing', 'Document Delivery', 'Other'];
-
-function LogMovementModal({ open, onClose }) {
-    const queryClient = useQueryClient();
-    const [reason, setReason] = useState(MOVEMENT_REASONS[0]);
-    const [details, setDetails] = useState('');
-    const [error, setError] = useState('');
-
-    const close = () => {
-        setReason(MOVEMENT_REASONS[0]);
-        setDetails('');
-        setError('');
-        onClose();
-    };
-
-    const mutation = useMutation({
-        mutationFn: () =>
-            new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    resolve({ lat: null, lng: null });
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                    () => resolve({ lat: null, lng: null })
-                );
-            }).then(({ lat, lng }) => client.post('/api/sec/attendance/log-movement', { reason, details, lat, lng })),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['sec-attendance'] });
-            close();
-        },
-        onError: (err) => setError(err.response?.data?.message || 'Could not log movement.'),
-    });
-
-    return (
-        <Modal open={open} onClose={close} title="Log Movement" subtitle="Leaving UC premises during working hours">
-            <form
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    mutation.mutate();
-                }}
-            >
-                <Field label="Reason">
-                    <Select value={reason} onChange={(e) => setReason(e.target.value)}>
-                        {MOVEMENT_REASONS.map((r) => (
-                            <option key={r} value={r}>
-                                {r}
-                            </option>
-                        ))}
-                    </Select>
-                </Field>
-                <Field label="Details (optional)">
-                    <Textarea value={details} onChange={(e) => setDetails(e.target.value)} />
-                </Field>
-                <ErrorText>{error}</ErrorText>
-                <Button type="submit" className="mt-2 w-full" disabled={mutation.isPending}>
-                    {mutation.isPending ? 'Logging…' : 'Log Movement'}
-                </Button>
-            </form>
-        </Modal>
-    );
-}
+import { Badge, Card, ErrorText } from '../../components/ui';
 
 export default function Attendance() {
     useEffect(() => setLastModule('att'), []);
 
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const [movementOpen, setMovementOpen] = useState(false);
     const [markError, setMarkError] = useState('');
     const additionalCharges = user?.secretary_profile?.additional_charges || [];
 
@@ -156,10 +92,6 @@ export default function Attendance() {
                         <ErrorText>{markError}</ErrorText>
                     </>
                 )}
-
-                <Button variant="ghost" className="mt-5 w-auto px-4" onClick={() => setMovementOpen(true)}>
-                    <MapPinIcon className="h-4 w-4" /> Log Movement
-                </Button>
             </div>
 
             <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-ink-muted">Attendance History</h2>
@@ -178,8 +110,6 @@ export default function Attendance() {
                     }}
                 />
             </Card>
-
-            <LogMovementModal open={movementOpen} onClose={() => setMovementOpen(false)} />
         </div>
     );
 }

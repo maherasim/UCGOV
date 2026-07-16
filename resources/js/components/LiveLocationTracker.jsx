@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import client from '../api/client';
-import { Button, ErrorText, Field, Modal, Select, Textarea } from './ui';
+import { useMovementLog } from '../context/MovementLogContext';
 
-const MOVEMENT_REASONS = ['Field Visit', 'Tehsil Office Meeting', 'Court Hearing', 'Document Delivery', 'Other'];
 const PING_INTERVAL_MS = 45000;
 
 function isWorkingHours() {
@@ -17,16 +16,15 @@ function isWorkingHours() {
  * Mounted once at the Secretary layout level (not the Attendance page) so it keeps running
  * no matter which tab the secretary is on — mirrors the prototype's initSEC() wiring, which
  * starts watchPosition at login, not when the Attendance tab is opened.
+ *
+ * Owns only the geolocation watch; the movement-log modal itself lives in
+ * MovementLogContext so this auto-prompt and the sidebar's manual button share one modal.
  */
 export default function LiveLocationTracker() {
-    const queryClient = useQueryClient();
+    const { openMovementLog } = useMovementLog();
     const watchIdRef = useRef(null);
     const lastPingRef = useRef(0);
     const promptedRef = useRef(false);
-    const [movementOpen, setMovementOpen] = useState(false);
-    const [reason, setReason] = useState(MOVEMENT_REASONS[0]);
-    const [details, setDetails] = useState('');
-    const [error, setError] = useState('');
 
     const pingMutation = useMutation({
         mutationFn: ({ lat, lng, accuracy }) => client.post('/api/sec/attendance/live-location', { lat, lng, accuracy }),
@@ -34,7 +32,7 @@ export default function LiveLocationTracker() {
             if (data.inside_geofence === false) {
                 if (!promptedRef.current) {
                     promptedRef.current = true;
-                    setMovementOpen(true);
+                    openMovementLog(true);
                 }
             } else {
                 promptedRef.current = false;
@@ -66,57 +64,5 @@ export default function LiveLocationTracker() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const closeModal = () => {
-        setReason(MOVEMENT_REASONS[0]);
-        setDetails('');
-        setError('');
-        setMovementOpen(false);
-    };
-
-    const submitMutation = useMutation({
-        mutationFn: () =>
-            new Promise((resolve) => {
-                if (!navigator.geolocation) {
-                    resolve({ lat: null, lng: null });
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                    () => resolve({ lat: null, lng: null })
-                );
-            }).then(({ lat, lng }) => client.post('/api/sec/attendance/log-movement', { reason, details, lat, lng })),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['sec-attendance'] });
-            closeModal();
-        },
-        onError: (err) => setError(err.response?.data?.message || 'Could not log movement.'),
-    });
-
-    return (
-        <Modal open={movementOpen} onClose={closeModal} title="You've left your UC" subtitle="Please log the reason for this movement">
-            <form
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    submitMutation.mutate();
-                }}
-            >
-                <Field label="Reason">
-                    <Select value={reason} onChange={(e) => setReason(e.target.value)}>
-                        {MOVEMENT_REASONS.map((r) => (
-                            <option key={r} value={r}>
-                                {r}
-                            </option>
-                        ))}
-                    </Select>
-                </Field>
-                <Field label="Details (optional)">
-                    <Textarea value={details} onChange={(e) => setDetails(e.target.value)} />
-                </Field>
-                <ErrorText>{error}</ErrorText>
-                <Button type="submit" className="mt-2 w-full" disabled={submitMutation.isPending}>
-                    {submitMutation.isPending ? 'Logging…' : 'Log Movement'}
-                </Button>
-            </form>
-        </Modal>
-    );
+    return null;
 }
