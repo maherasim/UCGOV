@@ -14,6 +14,7 @@ use App\Models\Newsletter;
 use App\Models\Tehsil;
 use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Support\GeoBounds;
 use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
@@ -68,7 +69,33 @@ class DashboardController extends Controller
             'case_disposition' => $this->caseDisposition(),
             'daily_trend' => $this->dailyTrend(),
             'vacant_by_district' => $this->vacantByDistrict(),
+            'uc_map' => $this->ucMap(),
         ]);
+    }
+
+    /**
+     * A province-shaped constellation of every geocoded UC — plotting real lat/lng
+     * naturally traces Punjab's outline without needing map tiles or a maps API key.
+     * status: 0 = vacant, 1 = covered, 2 = covered AND the secretary checked in today.
+     */
+    protected function ucMap(): array
+    {
+        $today = Carbon::today()->toDateString();
+        $checkedInTodayUcIds = AttendanceRecord::where('attendance_date', $today)->pluck('union_council_id')->unique();
+
+        $ucs = UnionCouncil::whereNotNull('lat')
+            ->whereNotNull('lng')
+            ->with('secretaryProfile:id,union_council_id')
+            ->get(['id', 'lat', 'lng'])
+            ->all();
+
+        $ucs = GeoBounds::filterOutliers($ucs, fn (UnionCouncil $uc) => (float) $uc->lat, fn (UnionCouncil $uc) => (float) $uc->lng);
+
+        return array_values(array_map(function (UnionCouncil $uc) use ($checkedInTodayUcIds) {
+            $status = ! $uc->secretaryProfile ? 0 : ($checkedInTodayUcIds->contains($uc->id) ? 2 : 1);
+
+            return [round((float) $uc->lat, 3), round((float) $uc->lng, 3), $status];
+        }, $ucs));
     }
 
     protected function todayAttendance(): array

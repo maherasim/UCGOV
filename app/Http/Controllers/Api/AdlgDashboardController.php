@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DvCaseResource;
+use App\Models\AttendanceRecord;
 use App\Models\AuditLog;
 use App\Models\DvCase;
 use App\Models\Newsletter;
 use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Support\GeoBounds;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -56,6 +58,115 @@ class AdlgDashboardController extends Controller
                     'user' => $request->user()->name,
                     'created_at' => $a->created_at,
                 ]),
+            'today_attendance' => $this->todayAttendance($tehsilId),
+            'attendance_trend' => $this->attendanceTrend($tehsilId),
+            'case_pipeline' => $this->casePipeline($cases),
+            'case_disposition' => $this->caseDisposition($cases),
+            'uc_map' => $this->ucMap($tehsilId),
         ]);
+    }
+
+    protected function todayAttendance(int $tehsilId): array
+    {
+        $total = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->count();
+
+        $marked = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->where('attendance_date', Carbon::today()->toDateString())
+            ->count();
+
+        return [
+            'marked' => $marked,
+            'total' => $total,
+            'rate' => $total ? round(($marked / $total) * 100) : 0,
+        ];
+    }
+
+    /** Daily marked-attendance rate across this tehsil's secretaries, last 14 days. */
+    protected function attendanceTrend(int $tehsilId): array
+    {
+        $total = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->count();
+
+        $start = Carbon::today()->subDays(13);
+
+        $counts = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->where('attendance_date', '>=', $start->toDateString())
+            ->selectRaw('attendance_date, count(*) as marked')
+            ->groupBy('attendance_date')
+            ->pluck('marked', 'attendance_date');
+
+        $days = [];
+        for ($d = $start->copy(); $d->lte(Carbon::today()); $d->addDay()) {
+            $marked = (int) ($counts[$d->toDateString()] ?? 0);
+            $days[] = [
+                'date' => $d->toDateString(),
+                'rate' => $total ? round(($marked / $total) * 100) : 0,
+            ];
+        }
+
+        return $days;
+    }
+
+    /** Current stage distribution of this tehsil's Divorce/Khula cases. */
+    protected function casePipeline($cases): array
+    {
+        $counts = $cases->countBy('status');
+        $disposed = ['DISPOSED_RECONCILED', 'DISPOSED_EFFECTIVE', 'FILED_NON_RESPONSE'];
+
+        return [
+            ['key' => 'SUBMITTED', 'label' => 'Submitted', 'count' => (int) ($counts['SUBMITTED'] ?? 0)],
+            ['key' => 'SEEN', 'label' => 'Seen', 'count' => (int) ($counts['SEEN'] ?? 0)],
+            ['key' => 'NOTICE_ISSUED', 'label' => 'Notice Issued', 'count' => (int) ($counts['NOTICE_ISSUED'] ?? 0)],
+            [
+                'key' => 'PROCEEDINGS',
+                'label' => 'Arbitration / Proceedings',
+                'count' => (int) ($counts['ARB_CONSTITUTED'] ?? 0) + (int) ($counts['IN_PROCEEDINGS'] ?? 0),
+            ],
+            [
+                'key' => 'DISPOSED',
+                'label' => 'Disposed',
+                'count' => collect($disposed)->sum(fn ($s) => (int) ($counts[$s] ?? 0)),
+            ],
+        ];
+    }
+
+    /** How this tehsil's disposed cases actually resolved. */
+    protected function caseDisposition($cases): array
+    {
+        $counts = $cases->whereIn('status', ['DISPOSED_RECONCILED', 'DISPOSED_EFFECTIVE', 'FILED_NON_RESPONSE'])->countBy('status');
+
+        return [
+            ['key' => 'DISPOSED_RECONCILED', 'label' => 'Reconciled', 'count' => (int) ($counts['DISPOSED_RECONCILED'] ?? 0)],
+            ['key' => 'DISPOSED_EFFECTIVE', 'label' => 'Effective', 'count' => (int) ($counts['DISPOSED_EFFECTIVE'] ?? 0)],
+            ['key' => 'FILED_NON_RESPONSE', 'label' => 'Non-Response', 'count' => (int) ($counts['FILED_NON_RESPONSE'] ?? 0)],
+        ];
+    }
+
+    /** This tehsil's UCs plotted by real lat/lng — same "live constellation" as the Super Admin map, scoped down. */
+    protected function ucMap(int $tehsilId): array
+    {
+        $today = Carbon::today()->toDateString();
+        $checkedInTodayUcIds = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->where('attendance_date', $today)
+            ->pluck('union_council_id')
+            ->unique();
+
+        $ucs = UnionCouncil::where('tehsil_id', $tehsilId)
+            ->whereNotNull('lat')
+            ->whereNotNull('lng')
+            ->with('secretaryProfile:id,union_council_id')
+            ->get(['id', 'lat', 'lng'])
+            ->all();
+
+        $ucs = GeoBounds::filterOutliers($ucs, fn (UnionCouncil $uc) => (float) $uc->lat, fn (UnionCouncil $uc) => (float) $uc->lng);
+
+        return array_values(array_map(function (UnionCouncil $uc) use ($checkedInTodayUcIds) {
+            $status = ! $uc->secretaryProfile ? 0 : ($checkedInTodayUcIds->contains($uc->id) ? 2 : 1);
+
+            return [round((float) $uc->lat, 4), round((float) $uc->lng, 4), $status];
+        }, $ucs));
     }
 }
