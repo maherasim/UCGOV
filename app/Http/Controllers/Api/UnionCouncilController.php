@@ -27,14 +27,28 @@ class UnionCouncilController extends Controller
     /**
      * Read-only, Punjab-wide view for Super Admin — every UC across every tehsil/district,
      * A–Z. Editing stays exclusive to the owning ADLG (see index()/update() above).
+     *
+     * Paginated (not ->get()) — there are 4,000+ UCs in Punjab; shipping the full set to the
+     * browser in one response is what was making this page slow/unresponsive to load.
      */
     public function indexForAdmin(Request $request)
     {
-        $ucs = UnionCouncil::with(['tehsil.district', 'secretaryProfile.user'])
-            ->orderBy('name')
-            ->get();
+        $query = UnionCouncil::with(['tehsil.district', 'secretaryProfile.user']);
 
-        return UnionCouncilResource::collection($ucs);
+        if ($request->filled('search')) {
+            $search = $request->string('search')->toString();
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('uc_no', 'like', "%{$search}%")
+                    ->orWhereHas('tehsil', fn ($t) => $t->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('district', fn ($d) => $d->where('name', 'like', "%{$search}%")))
+                    ->orWhereHas('secretaryProfile.user', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $perPage = min($request->integer('per_page', 30), 100);
+
+        return UnionCouncilResource::collection($query->orderBy('name')->paginate($perPage));
     }
 
     public function store(StoreUnionCouncilRequest $request)

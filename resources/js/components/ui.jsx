@@ -93,6 +93,45 @@ export function EmptyState({ icon = '📭', title, subtitle }) {
     );
 }
 
+/**
+ * Footer pager for server-paginated lists (Laravel's default paginate() meta shape:
+ * current_page/last_page/total/from/to). Use when a list is too large to fetch in one
+ * request and hand to the client-side DataTable component.
+ */
+export function Pagination({ meta, onPageChange }) {
+    if (!meta || meta.last_page <= 1) return null;
+    const { current_page, last_page, total, from, to } = meta;
+
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <span className="text-xs text-ink-muted">
+                Showing {from}–{to} of {total}
+            </span>
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => onPageChange(current_page - 1)}
+                    disabled={current_page <= 1}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    Prev
+                </button>
+                <span className="text-xs font-semibold text-ink-muted">
+                    Page {current_page} of {last_page}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onPageChange(current_page + 1)}
+                    disabled={current_page >= last_page}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    Next
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export function Field({ label, children }) {
     return (
         <label className="mb-3 block">

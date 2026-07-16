@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { EyeIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { EyeIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
-import DataTable from '../../components/DataTable';
-import { Badge, Card, FullScreenSpinner, Modal } from '../../components/ui';
+import { Badge, Card, EmptyState, Modal, Pagination, Spinner, TextInput } from '../../components/ui';
 import { formatCnic, formatPhone } from '../../utils/format';
 
 function SecretaryDetailModal({ secretaryId, onClose }) {
@@ -96,67 +95,108 @@ function SecretaryDetailModal({ secretaryId, onClose }) {
 }
 
 export default function Secretaries() {
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [viewId, setViewId] = useState(null);
 
-    const { data, isLoading } = useQuery({
-        queryKey: ['admin-secretaries'],
-        queryFn: () => client.get('/api/admin/secretaries').then((r) => r.data.data),
+    const { data, isLoading, isFetching } = useQuery({
+        queryKey: ['admin-secretaries', search, page],
+        queryFn: () => client.get('/api/admin/secretaries', { params: { search: search || undefined, page } }).then((r) => r.data),
+        placeholderData: keepPreviousData,
     });
 
-    if (isLoading) return <FullScreenSpinner />;
+    const secretaries = data?.data || [];
+    const meta = data?.meta;
 
     return (
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-ink">Secretaries</h1>
-                    <p className="text-sm text-ink-muted">All {data.length} Union Council Secretaries across Punjab.</p>
+                    <p className="text-sm text-ink-muted">Every Union Council Secretary across Punjab{meta ? ` · ${meta.total} total` : ''}.</p>
                 </div>
             </div>
 
-            <Card>
-                <DataTable
-                    data={data}
-                    columns={[
-                        { title: 'Name', data: 'name' },
-                        { title: 'Username', data: 'username', render: (d) => `@${d}` },
-                        { title: 'Union Council', data: 'secretary_profile.union_council', defaultContent: '—' },
-                        { title: 'Tehsil', data: 'secretary_profile.tehsil', defaultContent: '—' },
-                        { title: 'District', data: 'secretary_profile.district', defaultContent: '—' },
-                        { title: 'Phone', data: 'phone', defaultContent: '—' },
-                        { title: 'Status', data: 'active' },
-                        { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
-                    ]}
-                    slots={{
-                        2: (data, row) => (
-                            <div className="flex items-center gap-1.5">
-                                <span>{data || '—'}</span>
-                                {row.secretary_profile?.additional_charges?.length > 0 && (
-                                    <span
-                                        title={`Additional charge: ${row.secretary_profile.additional_charges
-                                            .map((c) => c.union_council)
-                                            .join(', ')}`}
-                                    >
-                                        <Badge tone="info">+{row.secretary_profile.additional_charges.length}</Badge>
-                                    </span>
-                                )}
-                            </div>
-                        ),
-                        6: (data) => <Badge tone={data ? 'success' : 'danger'}>{data ? 'Active' : 'Inactive'}</Badge>,
-                        7: (data, row) => (
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={() => setViewId(row.id)}
-                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
-                                    aria-label="Show"
-                                    title="Show"
-                                >
-                                    <EyeIcon className="h-4 w-4" />
-                                </button>
-                            </div>
-                        ),
-                    }}
-                />
+            <div className="relative mb-4 max-w-sm">
+                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <div className="[&_input]:pl-9">
+                    <TextInput
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPage(1);
+                        }}
+                        placeholder="Search name, username, CNIC, phone, UC, tehsil, district…"
+                    />
+                </div>
+            </div>
+
+            <Card className="overflow-hidden">
+                {isLoading ? (
+                    <div className="flex justify-center py-16">
+                        <Spinner className="h-8 w-8" />
+                    </div>
+                ) : secretaries.length === 0 ? (
+                    <EmptyState icon="🧑‍💼" title="No secretaries match your search" />
+                ) : (
+                    <>
+                        <div className={`overflow-x-auto ${isFetching ? 'opacity-60' : ''}`}>
+                            <table className="w-full text-left text-sm">
+                                <thead className="border-b border-border bg-surface-subtle/60 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                                    <tr>
+                                        <th className="px-4 py-3">Name</th>
+                                        <th className="px-4 py-3">Username</th>
+                                        <th className="px-4 py-3">Union Council</th>
+                                        <th className="px-4 py-3">Tehsil</th>
+                                        <th className="px-4 py-3">District</th>
+                                        <th className="px-4 py-3">Phone</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        <th className="px-4 py-3 text-right"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {secretaries.map((sec) => (
+                                        <tr key={sec.id} className="hover:bg-surface-subtle/60">
+                                            <td className="px-4 py-3 font-medium text-ink">{sec.name}</td>
+                                            <td className="px-4 py-3 text-ink-muted">@{sec.username}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-ink-muted">{sec.secretary_profile?.union_council || '—'}</span>
+                                                    {sec.secretary_profile?.additional_charges?.length > 0 && (
+                                                        <span
+                                                            title={`Additional charge: ${sec.secretary_profile.additional_charges
+                                                                .map((c) => c.union_council)
+                                                                .join(', ')}`}
+                                                        >
+                                                            <Badge tone="info">+{sec.secretary_profile.additional_charges.length}</Badge>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-ink-muted">{sec.secretary_profile?.tehsil || '—'}</td>
+                                            <td className="px-4 py-3 text-ink-muted">{sec.secretary_profile?.district || '—'}</td>
+                                            <td className="px-4 py-3 text-ink-muted">{sec.phone ? formatPhone(sec.phone) : '—'}</td>
+                                            <td className="px-4 py-3">
+                                                <Badge tone={sec.active ? 'success' : 'danger'}>{sec.active ? 'Active' : 'Inactive'}</Badge>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    onClick={() => setViewId(sec.id)}
+                                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                                    aria-label="Show"
+                                                    title="Show"
+                                                >
+                                                    <EyeIcon className="h-4 w-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Pagination meta={meta} onPageChange={setPage} />
+                    </>
+                )}
             </Card>
 
             <SecretaryDetailModal secretaryId={viewId} onClose={() => setViewId(null)} />

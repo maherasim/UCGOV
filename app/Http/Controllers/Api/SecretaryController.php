@@ -37,15 +37,31 @@ class SecretaryController extends Controller
      * Read-only, Punjab-wide view for Super Admin — every secretary across every tehsil,
      * with a "show" detail action. Creating/editing stays exclusive to the owning ADLG
      * (see index()/store()/update() above).
+     *
+     * Paginated (not ->get()) — there are 3,000+ secretaries in Punjab; shipping the full
+     * set to the browser in one response is what was making this page slow/unresponsive.
      */
     public function indexForAdmin(Request $request)
     {
-        $secretaries = User::where('role', 'sec')
-            ->with(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil'])
-            ->orderBy('name')
-            ->get();
+        $query = User::where('role', 'sec')
+            ->with(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil']);
 
-        return UserResource::collection($secretaries);
+        if ($request->filled('search')) {
+            $search = $request->string('search')->toString();
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%")
+                    ->orWhere('cnic', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhereHas('secretaryProfile.unionCouncil', fn ($u) => $u->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('tehsil', fn ($t) => $t->where('name', 'like', "%{$search}%")
+                            ->orWhereHas('district', fn ($d) => $d->where('name', 'like', "%{$search}%"))));
+            });
+        }
+
+        $perPage = min($request->integer('per_page', 30), 100);
+
+        return UserResource::collection($query->orderBy('name')->paginate($perPage));
     }
 
     public function showForAdmin(Request $request, User $secretary)

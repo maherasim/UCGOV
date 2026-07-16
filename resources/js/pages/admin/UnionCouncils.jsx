@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { EyeIcon } from '@heroicons/react/24/outline';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
-import DataTable from '../../components/DataTable';
-import { Badge, Card, FullScreenSpinner, Modal } from '../../components/ui';
+import { Badge, Card, EmptyState, Pagination, Spinner, TextInput, Modal } from '../../components/ui';
 
 function UnionCouncilDetailModal({ uc, onClose }) {
     if (!uc) return null;
@@ -58,58 +57,100 @@ function UnionCouncilDetailModal({ uc, onClose }) {
 }
 
 export default function UnionCouncils() {
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [viewTarget, setViewTarget] = useState(null);
 
-    const { data, isLoading } = useQuery({
-        queryKey: ['admin-union-councils'],
-        queryFn: () => client.get('/api/admin/union-councils').then((r) => r.data.data),
+    const { data, isLoading, isFetching } = useQuery({
+        queryKey: ['admin-union-councils', search, page],
+        queryFn: () =>
+            client.get('/api/admin/union-councils', { params: { search: search || undefined, page } }).then((r) => r.data),
+        placeholderData: keepPreviousData,
     });
 
-    if (isLoading) return <FullScreenSpinner />;
+    const ucs = data?.data || [];
+    const meta = data?.meta;
 
     return (
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-ink">Union Councils</h1>
-                    <p className="text-sm text-ink-muted">All {data.length} Union Councils across Punjab, A–Z.</p>
+                    <p className="text-sm text-ink-muted">Every Union Council across Punjab, A–Z{meta ? ` · ${meta.total} total` : ''}.</p>
                 </div>
             </div>
 
-            <Card>
-                <DataTable
-                    data={data}
-                    columns={[
-                        { title: 'Name', data: 'name' },
-                        { title: 'UC No.', data: 'uc_no', defaultContent: '—' },
-                        { title: 'Tehsil', data: 'tehsil', defaultContent: '—' },
-                        { title: 'District', data: 'district', defaultContent: '—' },
-                        { title: 'Secretary', data: 'secretary' },
-                        { title: 'Geofence', data: 'lat' },
-                        { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
-                    ]}
-                    slots={{
-                        4: (data) => (data ? data : <Badge tone="warning">Vacant</Badge>),
-                        5: (data, row) =>
-                            row.lat && row.lng ? (
-                                <Badge tone="success">Set · {row.geofence_radius}m</Badge>
-                            ) : (
-                                <Badge tone="neutral">Not set</Badge>
-                            ),
-                        6: (data, row) => (
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={() => setViewTarget(row)}
-                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
-                                    aria-label="View"
-                                    title="View"
-                                >
-                                    <EyeIcon className="h-4 w-4" />
-                                </button>
-                            </div>
-                        ),
-                    }}
-                />
+            <div className="relative mb-4 max-w-sm">
+                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <div className="[&_input]:pl-9">
+                    <TextInput
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPage(1);
+                        }}
+                        placeholder="Search name, UC no., tehsil, district…"
+                    />
+                </div>
+            </div>
+
+            <Card className="overflow-hidden">
+                {isLoading ? (
+                    <div className="flex justify-center py-16">
+                        <Spinner className="h-8 w-8" />
+                    </div>
+                ) : ucs.length === 0 ? (
+                    <EmptyState icon="🏘️" title="No Union Councils match your search" />
+                ) : (
+                    <>
+                        <div className={`overflow-x-auto ${isFetching ? 'opacity-60' : ''}`}>
+                            <table className="w-full text-left text-sm">
+                                <thead className="border-b border-border bg-surface-subtle/60 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                                    <tr>
+                                        <th className="px-4 py-3">Name</th>
+                                        <th className="px-4 py-3">UC No.</th>
+                                        <th className="px-4 py-3">Tehsil</th>
+                                        <th className="px-4 py-3">District</th>
+                                        <th className="px-4 py-3">Secretary</th>
+                                        <th className="px-4 py-3">Geofence</th>
+                                        <th className="px-4 py-3 text-right"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {ucs.map((uc) => (
+                                        <tr key={uc.id} className="hover:bg-surface-subtle/60">
+                                            <td className="px-4 py-3 font-medium text-ink">{uc.name}</td>
+                                            <td className="px-4 py-3 text-ink-muted">{uc.uc_no ?? '—'}</td>
+                                            <td className="px-4 py-3 text-ink-muted">{uc.tehsil || '—'}</td>
+                                            <td className="px-4 py-3 text-ink-muted">{uc.district || '—'}</td>
+                                            <td className="px-4 py-3">
+                                                {uc.secretary || <Badge tone="warning">Vacant</Badge>}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {uc.lat && uc.lng ? (
+                                                    <Badge tone="success">Set · {uc.geofence_radius}m</Badge>
+                                                ) : (
+                                                    <Badge tone="neutral">Not set</Badge>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    onClick={() => setViewTarget(uc)}
+                                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                                    aria-label="View"
+                                                    title="View"
+                                                >
+                                                    <EyeIcon className="h-4 w-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Pagination meta={meta} onPageChange={setPage} />
+                    </>
+                )}
             </Card>
 
             <UnionCouncilDetailModal uc={viewTarget} onClose={() => setViewTarget(null)} />
