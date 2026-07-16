@@ -24,6 +24,19 @@ class UnionCouncilController extends Controller
         return UnionCouncilResource::collection($ucs);
     }
 
+    /**
+     * Read-only, Punjab-wide view for Super Admin — every UC across every tehsil/district,
+     * A–Z. Editing stays exclusive to the owning ADLG (see index()/update() above).
+     */
+    public function indexForAdmin(Request $request)
+    {
+        $ucs = UnionCouncil::with(['tehsil.district', 'secretaryProfile.user'])
+            ->orderBy('name')
+            ->get();
+
+        return UnionCouncilResource::collection($ucs);
+    }
+
     public function store(StoreUnionCouncilRequest $request)
     {
         $uc = UnionCouncil::create([

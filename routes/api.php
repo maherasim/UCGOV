@@ -61,6 +61,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/adlgs/{adlg}', [AdlgController::class, 'update']);
         Route::patch('/adlgs/{adlg}/toggle-active', [AdlgController::class, 'toggleActive']);
 
+        Route::get('/union-councils', [UnionCouncilController::class, 'indexForAdmin']);
+
+        Route::get('/secretaries', [SecretaryController::class, 'indexForAdmin']);
+        Route::get('/secretaries/{secretary}', [SecretaryController::class, 'showForAdmin']);
+
         Route::get('/audit-log', [AuditLogController::class, 'index']);
         Route::get('/audit-log-export', [AuditLogController::class, 'export']);
 

@@ -22,6 +22,10 @@ class UnionCouncilResource extends JsonResource
             'active' => $this->active,
             'secretary' => $this->whenLoaded('secretaryProfile', fn () => $this->secretaryProfile?->user?->name),
             'secretary_id' => $this->whenLoaded('secretaryProfile', fn () => $this->secretaryProfile?->user_id),
+            'tehsil' => $this->relationLoaded('tehsil') ? $this->tehsil?->name : null,
+            'district' => $this->relationLoaded('tehsil') && $this->tehsil?->relationLoaded('district')
+                ? $this->tehsil->district?->name
+                : null,
         ];
     }
 }

@@ -33,6 +33,30 @@ class SecretaryController extends Controller
         return UserResource::collection($secretaries);
     }
 
+    /**
+     * Read-only, Punjab-wide view for Super Admin — every secretary across every tehsil,
+     * with a "show" detail action. Creating/editing stays exclusive to the owning ADLG
+     * (see index()/store()/update() above).
+     */
+    public function indexForAdmin(Request $request)
+    {
+        $secretaries = User::where('role', 'sec')
+            ->with(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil'])
+            ->orderBy('name')
+            ->get();
+
+        return UserResource::collection($secretaries);
+    }
+
+    public function showForAdmin(Request $request, User $secretary)
+    {
+        abort_unless($secretary->role === 'sec', 404);
+
+        $secretary->load(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil']);
+
+        return new UserResource($secretary);
+    }
+
     public function store(StoreSecretaryRequest $request)
     {
         $uc = UnionCouncil::findOrFail($request->integer('union_council_id'));

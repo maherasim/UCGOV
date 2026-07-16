@@ -10,6 +10,8 @@ import Divisions from './pages/admin/Divisions';
 import Districts from './pages/admin/Districts';
 import Tehsils from './pages/admin/Tehsils';
 import Adlgs from './pages/admin/Adlgs';
+import AdminUnionCouncils from './pages/admin/UnionCouncils';
+import AdminSecretaries from './pages/admin/Secretaries';
 import AuditLog from './pages/admin/AuditLog';
 import AdminInquiries from './pages/admin/Inquiries';
 import AdminNewsletters from './pages/admin/Newsletters';
@@ -100,7 +102,9 @@ export default function App() {
                 <Route path="divisions" element={<Divisions />} />
                 <Route path="districts" element={<Districts />} />
                 <Route path="tehsils" element={<Tehsils />} />
+                <Route path="union-councils" element={<AdminUnionCouncils />} />
                 <Route path="adlgs" element={<Adlgs />} />
+                <Route path="secretaries" element={<AdminSecretaries />} />
                 <Route path="audit-log" element={<AuditLog />} />
                 <Route path="inquiries" element={<AdminInquiries />} />
                 <Route path="newsletters" element={<AdminNewsletters />} />
