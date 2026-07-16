@@ -54,10 +54,10 @@ function MovementQuickAction() {
     const { openMovementLog } = useMovementLog();
 
     return (
-        <div className="mt-3 rounded-xl border border-white/15 bg-white/5 p-3">
+        <div className="mt-3 rounded-xl border border-dashed border-accent-400/50 bg-accent-500/10 p-3">
             <button
                 onClick={() => openMovementLog(false)}
-                className="flex w-full items-center gap-2.5 rounded-lg bg-accent-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
+                className="flex w-full items-center gap-2.5 rounded-lg border border-accent-400/60 bg-transparent px-3 py-2.5 text-sm font-semibold text-accent-100 transition hover:border-accent-500 hover:bg-accent-500 hover:text-white"
             >
                 <MapPinIcon className="h-5 w-5 flex-shrink-0" />
                 Log Movement
