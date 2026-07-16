@@ -15,7 +15,6 @@ import ActivityTimeline from '../../components/ActivityTimeline';
 import AdlgAiChat from '../../components/AdlgAiChat';
 import { CHART_COLORS, HorizontalBarChart, StackedBarChart, TrendChart } from '../../components/charts';
 import LiveBadge from '../../components/LiveBadge';
-import PunjabLiveMap from '../../components/PunjabLiveMap';
 import SectionHeader from '../../components/SectionHeader';
 import { Card, FullScreenSpinner, KpiCard } from '../../components/ui';
 
@@ -47,15 +46,7 @@ export default function Dashboard() {
         attendance_trend: attendanceTrend,
         case_pipeline: casePipeline,
         case_disposition: caseDisposition,
-        uc_map: ucMap,
     } = data;
-
-    const ucMapStats = {
-        total: ucMap.length,
-        vacant: ucMap.filter((p) => p[2] === 0).length,
-        covered: ucMap.filter((p) => p[2] >= 1).length,
-        live: ucMap.filter((p) => p[2] === 2).length,
-    };
 
     return (
         <div>
@@ -99,38 +90,6 @@ export default function Dashboard() {
                     sub={`${todayAttendance.marked} of ${todayAttendance.total} secretaries`}
                 />
             </div>
-
-            <Card className="mt-6 overflow-hidden p-0">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-bold text-ink">Tehsil, Live</h2>
-                            <span className="relative flex h-1.5 w-1.5">
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-400 opacity-75" />
-                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-500" />
-                            </span>
-                        </div>
-                        <p className="text-xs text-ink-muted">Every geocoded Union Council in your tehsil, plotted by its real coordinates.</p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs">
-                        <span className="flex items-center gap-1.5 font-medium text-ink-muted">
-                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS.accent, boxShadow: `0 0 6px ${CHART_COLORS.accent}` }} />
-                            {ucMapStats.live} checked in right now
-                        </span>
-                        <span className="flex items-center gap-1.5 font-medium text-ink-muted">
-                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'rgba(11,109,58,0.7)' }} />
-                            {ucMapStats.covered} covered
-                        </span>
-                        <span className="flex items-center gap-1.5 font-medium text-ink-muted">
-                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'rgba(220,38,38,0.85)' }} />
-                            {ucMapStats.vacant} vacant
-                        </span>
-                    </div>
-                </div>
-                <div style={{ height: 320 }}>
-                    <PunjabLiveMap points={ucMap} />
-                </div>
-            </Card>
 
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="space-y-6 lg:col-span-2">

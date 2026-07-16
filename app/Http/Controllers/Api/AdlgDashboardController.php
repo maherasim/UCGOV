@@ -10,7 +10,6 @@ use App\Models\DvCase;
 use App\Models\Newsletter;
 use App\Models\UnionCouncil;
 use App\Models\User;
-use App\Support\GeoBounds;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -62,7 +61,6 @@ class AdlgDashboardController extends Controller
             'attendance_trend' => $this->attendanceTrend($tehsilId),
             'case_pipeline' => $this->casePipeline($cases),
             'case_disposition' => $this->caseDisposition($cases),
-            'uc_map' => $this->ucMap($tehsilId),
         ]);
     }
 
@@ -143,30 +141,5 @@ class AdlgDashboardController extends Controller
             ['key' => 'DISPOSED_EFFECTIVE', 'label' => 'Effective', 'count' => (int) ($counts['DISPOSED_EFFECTIVE'] ?? 0)],
             ['key' => 'FILED_NON_RESPONSE', 'label' => 'Non-Response', 'count' => (int) ($counts['FILED_NON_RESPONSE'] ?? 0)],
         ];
-    }
-
-    /** This tehsil's UCs plotted by real lat/lng — same "live constellation" as the Super Admin map, scoped down. */
-    protected function ucMap(int $tehsilId): array
-    {
-        $today = Carbon::today()->toDateString();
-        $checkedInTodayUcIds = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->where('attendance_date', $today)
-            ->pluck('union_council_id')
-            ->unique();
-
-        $ucs = UnionCouncil::where('tehsil_id', $tehsilId)
-            ->whereNotNull('lat')
-            ->whereNotNull('lng')
-            ->with('secretaryProfile:id,union_council_id')
-            ->get(['id', 'lat', 'lng'])
-            ->all();
-
-        $ucs = GeoBounds::filterOutliers($ucs, fn (UnionCouncil $uc) => (float) $uc->lat, fn (UnionCouncil $uc) => (float) $uc->lng);
-
-        return array_values(array_map(function (UnionCouncil $uc) use ($checkedInTodayUcIds) {
-            $status = ! $uc->secretaryProfile ? 0 : ($checkedInTodayUcIds->contains($uc->id) ? 2 : 1);
-
-            return [round((float) $uc->lat, 4), round((float) $uc->lng, 4), $status];
-        }, $ucs));
     }
 }
