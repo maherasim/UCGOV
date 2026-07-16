@@ -1,24 +1,21 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-    GlobeAsiaAustraliaIcon,
-    MapPinIcon,
-    BuildingLibraryIcon,
-    UserGroupIcon,
-    IdentificationIcon,
     ScaleIcon,
-    NewspaperIcon,
     DocumentTextIcon,
-    ShieldCheckIcon,
     ExclamationTriangleIcon,
-    ClockIcon,
+    FingerPrintIcon,
     PlusCircleIcon,
     UserPlusIcon,
     MegaphoneIcon,
+    MapPinIcon,
 } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import ActivityTimeline from '../../components/ActivityTimeline';
+import { CHART_COLORS, HorizontalBarChart, StackedBarChart, TrendChart } from '../../components/charts';
 import { Badge, Card, FullScreenSpinner, KpiCard } from '../../components/ui';
+import { timeAgo } from '../../utils/timeAgo';
 
 const QUICK_ACTIONS = [
     { to: 'tehsils', label: 'New Tehsil', icon: PlusCircleIcon },
@@ -26,32 +23,79 @@ const QUICK_ACTIONS = [
     { to: 'newsletters', label: 'Compose Newsletter', icon: MegaphoneIcon },
 ];
 
+const DISPOSITION_COLORS = {
+    DISPOSED_RECONCILED: CHART_COLORS.primary,
+    DISPOSED_EFFECTIVE: CHART_COLORS.info,
+    FILED_NON_RESPONSE: CHART_COLORS.accent,
+};
+
+function SectionHeader({ title, subtitle, action }) {
+    return (
+        <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+                <h2 className="text-sm font-bold text-ink">{title}</h2>
+                {subtitle && <p className="text-xs text-ink-muted">{subtitle}</p>}
+            </div>
+            {action}
+        </div>
+    );
+}
+
+function LiveBadge({ dataUpdatedAt }) {
+    const [, tick] = useState(0);
+
+    useEffect(() => {
+        const id = setInterval(() => tick((n) => n + 1), 5000);
+        return () => clearInterval(id);
+    }, []);
+
+    return (
+        <div className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary-500" />
+            </span>
+            <span className="font-bold uppercase tracking-wide text-primary-600">Live</span>
+            <span>· updated {dataUpdatedAt ? timeAgo(new Date(dataUpdatedAt).toISOString()) : 'just now'}</span>
+        </div>
+    );
+}
+
 export default function Dashboard() {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, dataUpdatedAt } = useQuery({
         queryKey: ['dashboard'],
         queryFn: () => client.get('/api/admin/dashboard').then((r) => r.data),
+        refetchInterval: 20000,
     });
 
     if (isLoading) return <FullScreenSpinner />;
 
-    const { kpis, adlg_coverage: coverage, recent_audit: recentAudit, recent_adlgs: recentAdlgs } = data;
+    const {
+        kpis,
+        recent_audit: recentAudit,
+        recent_adlgs: recentAdlgs,
+        today_attendance: todayAttendance,
+        attendance_trend: attendanceTrend,
+        case_pipeline: casePipeline,
+        case_disposition: caseDisposition,
+        daily_trend: dailyTrend,
+        vacant_by_district: vacantByDistrict,
+    } = data;
 
     return (
         <div>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <KpiCard icon={GlobeAsiaAustraliaIcon} tone="primary" label="Divisions" value={kpis.divisions} sub="Punjab-wide" />
-                <KpiCard icon={MapPinIcon} tone="accent" label="Districts" value={kpis.districts} />
-                <KpiCard icon={BuildingLibraryIcon} tone="info" label="Tehsils" value={kpis.tehsils} />
-                <KpiCard icon={BuildingLibraryIcon} tone="primary" label="Union Councils" value={kpis.union_councils} />
+            <div className="mb-4 flex items-center justify-between">
+                <div className="text-sm text-ink-muted">Real-time snapshot of the UC Governance Platform, Punjab-wide.</div>
+                <LiveBadge dataUpdatedAt={dataUpdatedAt} />
+            </div>
 
-                <KpiCard icon={UserGroupIcon} tone="accent" label="ADLGs" value={kpis.adlgs} sub="Active officers" />
-                <KpiCard icon={IdentificationIcon} tone="primary" label="Secretaries" value={kpis.secretaries} />
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <KpiCard icon={ScaleIcon} tone="accent" label="Active DV Cases" value={kpis.active_cases} sub={`${kpis.dv_cases} total filed`} />
                 <KpiCard
-                    icon={ShieldCheckIcon}
-                    tone={kpis.adlg_coverage_pct === 100 ? 'primary' : 'accent'}
-                    label="ADLG Coverage"
-                    value={`${kpis.adlg_coverage_pct}%`}
-                    sub={`${coverage.activated} of ${coverage.total} tehsils`}
+                    icon={DocumentTextIcon}
+                    tone={kpis.pending_inquiries > 0 ? 'danger' : 'primary'}
+                    label="Pending Inquiries"
+                    value={kpis.pending_inquiries}
                 />
                 <KpiCard
                     icon={ExclamationTriangleIcon}
@@ -60,34 +104,110 @@ export default function Dashboard() {
                     value={kpis.vacant_ucs}
                     sub="No secretary assigned"
                 />
-
-                <KpiCard icon={ScaleIcon} tone="danger" label="Divorce/Khula Cases" value={kpis.dv_cases} />
-                <KpiCard icon={ClockIcon} tone="accent" label="Active Cases" value={kpis.active_cases} sub="In progress" />
-                <KpiCard icon={NewspaperIcon} tone="info" label="Newsletters Published" value={kpis.newsletters} />
                 <KpiCard
-                    icon={DocumentTextIcon}
-                    tone={kpis.pending_inquiries > 0 ? 'danger' : 'primary'}
-                    label="Pending Inquiries"
-                    value={kpis.pending_inquiries}
+                    icon={FingerPrintIcon}
+                    tone={todayAttendance.rate >= 70 ? 'primary' : todayAttendance.rate >= 40 ? 'accent' : 'danger'}
+                    label="Today's Attendance"
+                    value={`${todayAttendance.rate}%`}
+                    sub={`${todayAttendance.marked} of ${todayAttendance.total} secretaries`}
                 />
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div>
-                    <div className="mb-3 flex items-center justify-between">
-                        <h2 className="text-xs font-bold uppercase tracking-wide text-ink-muted">Recent Audit Events</h2>
-                        <Link to="/admin/audit-log" className="text-xs font-semibold text-primary-600 hover:underline">
-                            View all →
-                        </Link>
-                    </div>
-                    <Card>
-                        <ActivityTimeline events={recentAudit.slice(0, 8)} />
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-2">
+                    <Card className="p-5">
+                        <SectionHeader
+                            title="Case Pipeline"
+                            subtitle="Where the province's Divorce/Khula caseload currently sits"
+                            action={
+                                <Link to="/admin/audit-log" className="text-xs font-semibold text-primary-600 hover:underline">
+                                    Audit trail →
+                                </Link>
+                            }
+                        />
+                        <HorizontalBarChart
+                            data={casePipeline.map((s) => ({ label: s.label, value: s.count }))}
+                            color={CHART_COLORS.primary}
+                            emptyLabel="No Divorce/Khula cases filed yet."
+                        />
+                    </Card>
+
+                    <Card className="p-5">
+                        <SectionHeader title="Case Activity — Last 14 Days" subtitle="New Divorce/Khula filings vs. new Birth Registrations" />
+                        <TrendChart
+                            data={dailyTrend}
+                            series={[
+                                { key: 'dv_cases', label: 'Divorce/Khula', color: CHART_COLORS.primary, area: true },
+                                { key: 'lbr_cases', label: 'Birth Registration', color: CHART_COLORS.info, area: false },
+                            ]}
+                        />
+                    </Card>
+
+                    <Card className="p-5">
+                        <SectionHeader title="Case Outcomes" subtitle="How disposed Divorce/Khula cases resolved, all-time" />
+                        <StackedBarChart
+                            segments={caseDisposition.map((s) => ({ key: s.key, label: s.label, value: s.count, color: DISPOSITION_COLORS[s.key] }))}
+                        />
                     </Card>
                 </div>
 
                 <div className="space-y-6">
+                    <Card className="p-5">
+                        <SectionHeader title="Attendance Trend" subtitle="% of secretaries marked present, last 14 days" />
+                        <div className="mb-3">
+                            <div className="mb-1 flex items-center justify-between text-xs font-semibold text-ink-muted">
+                                <span>Today</span>
+                                <span className="text-ink">{todayAttendance.marked} / {todayAttendance.total}</span>
+                            </div>
+                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary-50">
+                                <div
+                                    className="h-full rounded-full bg-primary-500 transition-all"
+                                    style={{ width: `${Math.min(100, todayAttendance.rate)}%` }}
+                                />
+                            </div>
+                        </div>
+                        <TrendChart
+                            data={attendanceTrend}
+                            height={140}
+                            series={[{ key: 'rate', label: 'Attendance Rate', color: CHART_COLORS.primary, area: true }]}
+                            valueFormatter={(v) => `${v}%`}
+                            yTickFormatter={(v) => `${v}%`}
+                        />
+                    </Card>
+
+                    <Card className="p-5">
+                        <SectionHeader
+                            title="Coverage Gaps"
+                            subtitle="Districts with the most vacant Union Councils"
+                            action={
+                                <Link to="/admin/union-councils" className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:underline">
+                                    <MapPinIcon className="h-3.5 w-3.5" /> View all
+                                </Link>
+                            }
+                        />
+                        <HorizontalBarChart
+                            data={vacantByDistrict.map((d) => ({ label: d.district, value: d.count }))}
+                            color={CHART_COLORS.danger}
+                            emptyLabel="Every Union Council is covered. 🎉"
+                        />
+                    </Card>
+
                     <div>
-                        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-ink-muted">Quick Actions</h2>
+                        <SectionHeader
+                            title="Live Activity"
+                            action={
+                                <Link to="/admin/audit-log" className="text-xs font-semibold text-primary-600 hover:underline">
+                                    View all →
+                                </Link>
+                            }
+                        />
+                        <Card>
+                            <ActivityTimeline events={recentAudit.slice(0, 8)} />
+                        </Card>
+                    </div>
+
+                    <div>
+                        <SectionHeader title="Quick Actions" />
                         <Card className="p-3">
                             <div className="space-y-1">
                                 {QUICK_ACTIONS.map((action) => (
@@ -105,7 +225,7 @@ export default function Dashboard() {
                     </div>
 
                     <div>
-                        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-ink-muted">Recently Added ADLGs</h2>
+                        <SectionHeader title="Recently Added ADLGs" />
                         <Card>
                             {recentAdlgs.length === 0 ? (
                                 <div className="p-6 text-center text-sm text-ink-muted">None yet.</div>
