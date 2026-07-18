@@ -56,8 +56,9 @@ class ProfileController extends Controller
     }
 
     /**
-     * First-login setup wizard: set a real password + simulated biometric enrollment
-     * (no real hardware — same as the prototype, which also just flips a boolean).
+     * First-login setup wizard: set a real password. Biometric enrollment is a real
+     * WebAuthn ceremony (see PasskeyController) that runs before this and sets
+     * bio_enrolled itself — this step just finalizes the password and login state.
      */
     public function completeFirstLogin(CompleteFirstLoginRequest $request)
     {
@@ -66,7 +67,6 @@ class ProfileController extends Controller
         $user->forceFill([
             'password' => Hash::make($request->string('password')->toString()),
             'first_login' => false,
-            'bio_enrolled' => true,
         ])->save();
 
         AuditLog::create([
@@ -74,7 +74,7 @@ class ProfileController extends Controller
             'action' => 'FIRST_LOGIN_COMPLETED',
             'entity_type' => 'User',
             'entity_id' => $user->id,
-            'note' => "{$user->name} completed first-login setup (password + biometric enrollment)",
+            'note' => "{$user->name} completed first-login setup (password set)",
         ]);
 
         return new UserResource($user);

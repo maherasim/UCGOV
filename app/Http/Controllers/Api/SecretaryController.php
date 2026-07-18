@@ -87,7 +87,7 @@ class SecretaryController extends Controller
                 'cnic' => $request->input('cnic'),
                 'phone' => $request->input('phone'),
                 'active' => true,
-                'bio_enrolled' => true,
+                'bio_enrolled' => false,
                 'first_login' => true,
             ]);
 

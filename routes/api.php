@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\InquiryController;
 use App\Http\Controllers\Api\LbrCaseController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PasskeyController;
 use App\Http\Controllers\Api\PerformaController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileSubmissionController;
@@ -33,6 +34,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/profile/change-password', [ProfileController::class, 'changePassword']);
     Route::post('/profile/complete-first-login', [ProfileController::class, 'completeFirstLogin']);
     Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
+
+    Route::get('/passkeys', [PasskeyController::class, 'index']);
+    Route::get('/passkeys/register-options', [PasskeyController::class, 'registerOptions']);
+    Route::post('/passkeys', [PasskeyController::class, 'register']);
+    Route::delete('/passkeys/{passkey}', [PasskeyController::class, 'destroy']);
 
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
@@ -149,6 +155,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::middleware('role:sec')->prefix('sec')->group(function () {
+        Route::get('/attendance/webauthn-options', [AttendanceController::class, 'webauthnOptions']);
         Route::post('/attendance/mark-in', [AttendanceController::class, 'markIn']);
         Route::get('/attendance', [AttendanceController::class, 'myHistory']);
         Route::post('/attendance/log-movement', [AttendanceController::class, 'logMovement']);

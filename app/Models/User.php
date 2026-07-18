@@ -7,12 +7,14 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Passkeys\Contracts\PasskeyUser;
+use Laravel\Passkeys\PasskeyAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, PasskeyAuthenticatable;
 
     /**
      * The attributes that are mass assignable.
@@ -85,5 +87,14 @@ class User extends Authenticatable
     public function auditLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(AuditLog::class);
+    }
+
+    /**
+     * Most accounts here (ADLG/Secretary) have no email — use the login username
+     * instead so the OS-level fingerprint prompt shows something meaningful.
+     */
+    public function getPasskeyUsername(): string
+    {
+        return $this->username ?? $this->email ?? (string) $this->getAuthIdentifier();
     }
 }

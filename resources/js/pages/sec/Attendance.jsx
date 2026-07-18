@@ -5,7 +5,21 @@ import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { useAuth } from '../../context/AuthContext';
 import { setLastModule } from '../../utils/lastModule';
+import { verifyFingerprint } from '../../utils/webauthn';
 import { Badge, Card, ErrorText } from '../../components/ui';
+
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not available in this browser.'));
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => reject(new Error('Could not get your location. Please enable location access.'))
+        );
+    });
+}
 
 export default function Attendance() {
     useEffect(() => setLastModule('att'), []);
@@ -13,6 +27,7 @@ export default function Attendance() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [markError, setMarkError] = useState('');
+    const [markPhase, setMarkPhase] = useState('');
     const additionalCharges = user?.secretary_profile?.additional_charges || [];
 
     const { data, isLoading } = useQuery({
@@ -24,19 +39,24 @@ export default function Attendance() {
     const todayRecord = data?.find((r) => r.attendance_date === today);
 
     const markMutation = useMutation({
-        mutationFn: () =>
-            new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    reject(new Error('Geolocation is not available in this browser.'));
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                    () => reject(new Error('Could not get your location. Please enable location access.'))
-                );
-            }).then(({ lat, lng }) => client.post('/api/sec/attendance/mark-in', { lat, lng })),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sec-attendance'] }),
-        onError: (err) => setMarkError(err.response?.data?.message || err.message || 'Could not mark attendance.'),
+        mutationFn: async () => {
+            setMarkPhase('Getting your location…');
+            const { lat, lng } = await getCurrentPosition();
+
+            setMarkPhase('Waiting for your fingerprint…');
+            const credential = await verifyFingerprint();
+
+            setMarkPhase('Marking attendance…');
+            return client.post('/api/sec/attendance/mark-in', { lat, lng, credential });
+        },
+        onSuccess: () => {
+            setMarkPhase('');
+            queryClient.invalidateQueries({ queryKey: ['sec-attendance'] });
+        },
+        onError: (err) => {
+            setMarkPhase('');
+            setMarkError(err.response?.data?.message || err.message || 'Could not mark attendance.');
+        },
     });
 
     if (isLoading) return null;
@@ -86,9 +106,9 @@ export default function Attendance() {
                             <FingerPrintIcon className="h-10 w-10" />
                         </button>
                         <h2 className="mt-4 text-lg font-bold text-ink">
-                            {markMutation.isPending ? 'Marking attendance…' : 'Tap to Mark Attendance'}
+                            {markMutation.isPending ? markPhase || 'Marking attendance…' : 'Tap to Mark Attendance'}
                         </h2>
-                        <p className="text-sm text-ink-muted">Uses your device location to confirm you're at the UC office.</p>
+                        <p className="text-sm text-ink-muted">Confirms your location and verifies your fingerprint.</p>
                         <ErrorText>{markError}</ErrorText>
                     </>
                 )}

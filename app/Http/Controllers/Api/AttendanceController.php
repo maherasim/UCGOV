@@ -18,6 +18,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
+use Laravel\Passkeys\Actions\GenerateVerificationOptions;
+use Laravel\Passkeys\Actions\VerifyPasskey;
+use Laravel\Passkeys\Support\WebAuthn;
 
 class AttendanceController extends Controller
 {
@@ -35,7 +38,27 @@ class AttendanceController extends Controller
         return (int) round($earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a)));
     }
 
-    public function markIn(MarkAttendanceRequest $request)
+    /**
+     * Verification challenge for the mark-in ceremony — scoped to the secretary's own
+     * enrolled credential(s) so only their fingerprint/Face ID can satisfy it.
+     */
+    public function webauthnOptions(Request $request, GenerateVerificationOptions $generate)
+    {
+        $user = $request->user();
+
+        if (! $user->hasPasskeysEnabled()) {
+            throw ValidationException::withMessages([
+                'credential' => 'No fingerprint is enrolled on this account. Please contact your ADLG.',
+            ]);
+        }
+
+        $options = $generate($user);
+        $request->session()->put('passkey.verification_options', WebAuthn::toJson($options));
+
+        return response()->json(['options' => WebAuthn::toBrowserArray($options)]);
+    }
+
+    public function markIn(MarkAttendanceRequest $request, VerifyPasskey $verifyPasskey)
     {
         $user = $request->user();
         $uc = $user->secretaryProfile->unionCouncil;
@@ -44,6 +67,11 @@ class AttendanceController extends Controller
         if (AttendanceRecord::where('secretary_id', $user->id)->where('attendance_date', $today)->exists()) {
             throw ValidationException::withMessages(['lat' => 'Attendance already marked for today.']);
         }
+
+        // Verifies the WebAuthn assertion against this secretary's own enrolled
+        // credential — throws (422) if the fingerprint doesn't match, is stale, or
+        // was replayed. Nothing below runs unless this genuinely succeeds.
+        $verifyPasskey($request->credential(), $request->verificationOptions(), $user);
 
         $distance = ($uc->lat && $uc->lng)
             ? $this->distanceMeters((float) $uc->lat, (float) $uc->lng, $request->float('lat'), $request->float('lng'))
