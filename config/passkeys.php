@@ -22,12 +22,24 @@ return [
     |
     | The origins permitted to complete WebAuthn ceremonies. Passkeys bound
     | to the relying party ID above will only verify when the browser
-    | reports one of these origins. Defaults to your application URL.
+    | reports one of these origins.
+    |
+    | This app's APP_URL includes a path (e.g. "https://migalo.de/ucgov"), but a
+    | WebAuthn "origin" is always scheme+host[:port] only — never a path. Using
+    | config('app.url') as-is here would make every ceremony fail with an origin
+    | mismatch in production, so it's rebuilt from just the scheme/host/port.
     |
     */
 
     'allowed_origins' => [
-        config('app.url'),
+        (function (): string {
+            $url = config('app.url');
+            $scheme = parse_url($url, PHP_URL_SCHEME) ?? 'https';
+            $host = parse_url($url, PHP_URL_HOST);
+            $port = parse_url($url, PHP_URL_PORT);
+
+            return $scheme.'://'.$host.($port ? ":{$port}" : '');
+        })(),
     ],
 
     /*
