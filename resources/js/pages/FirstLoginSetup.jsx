@@ -97,7 +97,7 @@ export default function FirstLoginSetup() {
                         {!supported ? (
                             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-danger">
                                 This device or browser doesn't support fingerprint verification. Please open this page on a phone or
-                                laptop with a fingerprint sensor, or contact your ADLG for help.
+                                laptop with a fingerprint sensor, or contact your ADLG for help — or skip for now below.
                             </div>
                         ) : (
                             <>
@@ -125,6 +125,20 @@ export default function FirstLoginSetup() {
                             </>
                         )}
                         <ErrorText>{error}</ErrorText>
+
+                        {!enrolled && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setError('');
+                                    completeMutation.mutate();
+                                }}
+                                disabled={enrollMutation.isPending || completeMutation.isPending}
+                                className="mt-5 text-xs font-semibold text-ink-muted underline decoration-dotted hover:text-ink disabled:opacity-60"
+                            >
+                                {completeMutation.isPending ? 'Finishing setup…' : 'Skip for now'}
+                            </button>
+                        )}
                     </div>
                 )}
             </Card>
