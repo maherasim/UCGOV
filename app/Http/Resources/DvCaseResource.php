@@ -94,6 +94,8 @@ class DvCaseResource extends JsonResource
                 'respondent_present' => $p->respondent_present,
                 'petitioner_biometric' => $p->petitioner_biometric,
                 'respondent_biometric' => $p->respondent_biometric,
+                'petitioner_photo_url' => $p->petitioner_photo_path ? Storage::disk('public')->url($p->petitioner_photo_path) : null,
+                'respondent_photo_url' => $p->respondent_photo_path ? Storage::disk('public')->url($p->respondent_photo_path) : null,
                 'pet_rep_name' => $p->pet_rep_name,
                 'res_rep_name' => $p->res_rep_name,
                 'pet_statement' => $p->pet_statement,

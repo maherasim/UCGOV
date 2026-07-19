@@ -17,6 +17,8 @@ class CaseProceeding extends Model
         'respondent_present',
         'petitioner_biometric',
         'respondent_biometric',
+        'petitioner_photo_path',
+        'respondent_photo_path',
         'pet_rep_name',
         'pet_rep_cnic',
         'res_rep_name',

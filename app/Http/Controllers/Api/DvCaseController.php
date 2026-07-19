@@ -358,6 +358,12 @@ class DvCaseController extends Controller
                 'respondent_present' => $request->boolean('respondent_present'),
                 'petitioner_biometric' => $request->boolean('petitioner_biometric'),
                 'respondent_biometric' => $request->boolean('respondent_biometric'),
+                'petitioner_photo_path' => $request->hasFile('petitioner_photo')
+                    ? $request->file('petitioner_photo')->store('case-party-photos', 'public')
+                    : null,
+                'respondent_photo_path' => $request->hasFile('respondent_photo')
+                    ? $request->file('respondent_photo')->store('case-party-photos', 'public')
+                    : null,
                 'pet_rep_name' => $request->input('pet_rep_name'),
                 'pet_rep_cnic' => $request->input('pet_rep_cnic'),
                 'res_rep_name' => $request->input('res_rep_name'),

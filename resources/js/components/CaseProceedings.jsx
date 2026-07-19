@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, CameraIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import client from '../api/client';
 import { APP_BASE_PATH } from '../utils/basePath';
+import { compressPhoto } from '../utils/photoCapture';
 import { Button, ErrorText, Field, Textarea, TextInput } from './ui';
+import DocumentPreviewModal from './DocumentPreviewModal';
 
 const emptyForm = {
     date: new Date().toISOString().slice(0, 10),
@@ -42,15 +44,96 @@ function Checkbox({ checked, onChange, label }) {
     );
 }
 
+/**
+ * Camera capture for a party's presence photo — the actual proof behind "Present,"
+ * not just the checkbox. Uses the back/environment camera since you're photographing
+ * someone else, unlike the front-camera selfie pattern used for secretary attendance.
+ */
+function PartyPhotoCapture({ label, photo, preview, onCapture, onRetake, error }) {
+    const inputRef = useRef(null);
+
+    const handleChange = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const blob = await compressPhoto(file);
+            onCapture(blob, URL.createObjectURL(blob));
+        } catch (err) {
+            onCapture(null, null, err.message);
+        }
+    };
+
+    return (
+        <div>
+            <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleChange} />
+            {preview ? (
+                <div className="relative inline-block">
+                    <img src={preview} alt={`${label} photo`} className="h-20 w-20 rounded-lg border border-border object-cover" />
+                    <button
+                        type="button"
+                        onClick={onRetake}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                        aria-label={`Retake ${label} photo`}
+                    >
+                        <XMarkIcon className="h-3 w-3" />
+                    </button>
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => inputRef.current?.click()}
+                    className={`flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed text-ink-muted transition hover:border-primary-400 hover:text-primary-600 ${
+                        error ? 'border-danger text-danger' : 'border-border'
+                    }`}
+                >
+                    <CameraIcon className="h-5 w-5" />
+                    <span className="text-[10px] font-semibold">{label}</span>
+                </button>
+            )}
+            {error && <ErrorText>{error}</ErrorText>}
+        </div>
+    );
+}
+
 export function AddHearingForm({ role, caseId, queryKeyPrefix, onDone }) {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
+    const [petitionerPhoto, setPetitionerPhoto] = useState(null);
+    const [petitionerPreview, setPetitionerPreview] = useState(null);
+    const [respondentPhoto, setRespondentPhoto] = useState(null);
+    const [respondentPreview, setRespondentPreview] = useState(null);
+    const [photoError, setPhotoError] = useState('');
     const [error, setError] = useState('');
 
     const set = (key) => (val) => setForm({ ...form, [key]: val });
 
+    const retakePetitioner = () => {
+        if (petitionerPreview) URL.revokeObjectURL(petitionerPreview);
+        setPetitionerPhoto(null);
+        setPetitionerPreview(null);
+    };
+    const retakeRespondent = () => {
+        if (respondentPreview) URL.revokeObjectURL(respondentPreview);
+        setRespondentPhoto(null);
+        setRespondentPreview(null);
+    };
+
     const mutation = useMutation({
-        mutationFn: () => client.post(`/api/${role}/cases/${caseId}/proceedings`, form),
+        mutationFn: () => {
+            const data = new FormData();
+            Object.entries(form).forEach(([key, value]) => {
+                if (typeof value === 'boolean') {
+                    data.append(key, value ? '1' : '0');
+                } else if (value !== '' && value !== null && value !== undefined) {
+                    data.append(key, value);
+                }
+            });
+            if (petitionerPhoto) data.append('petitioner_photo', petitionerPhoto, 'petitioner.jpg');
+            if (respondentPhoto) data.append('respondent_photo', respondentPhoto, 'respondent.jpg');
+
+            return client.post(`/api/${role}/cases/${caseId}/proceedings`, data);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [`${queryKeyPrefix}-cases`] });
             queryClient.invalidateQueries({ queryKey: [`${queryKeyPrefix}-case`, caseId] });
@@ -59,14 +142,24 @@ export function AddHearingForm({ role, caseId, queryKeyPrefix, onDone }) {
         onError: (err) => setError(err.response?.data?.message || 'Could not record hearing.'),
     });
 
+    const submit = (e) => {
+        e.preventDefault();
+        setError('');
+        setPhotoError('');
+
+        if (form.petitioner_present && !petitionerPhoto) {
+            setPhotoError('Photo required for anyone marked present.');
+            return;
+        }
+        if (form.respondent_present && !respondentPhoto) {
+            setPhotoError('Photo required for anyone marked present.');
+            return;
+        }
+        mutation.mutate();
+    };
+
     return (
-        <form
-            className="mt-3 space-y-3 rounded-xl border border-border bg-surface-subtle p-3"
-            onSubmit={(e) => {
-                e.preventDefault();
-                mutation.mutate();
-            }}
-        >
+        <form className="mt-3 space-y-3 rounded-xl border border-border bg-surface-subtle p-3" onSubmit={submit}>
             <div className="grid grid-cols-2 gap-3">
                 <Field label="Hearing Date">
                     <TextInput type="date" value={form.date} onChange={(e) => set('date')(e.target.value)} required />
@@ -76,11 +169,52 @@ export function AddHearingForm({ role, caseId, queryKeyPrefix, onDone }) {
                 </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-surface p-3">
-                <Checkbox checked={form.petitioner_present} onChange={set('petitioner_present')} label="Petitioner Present" />
-                <Checkbox checked={form.petitioner_biometric} onChange={set('petitioner_biometric')} label="Petitioner Biometric" />
-                <Checkbox checked={form.respondent_present} onChange={set('respondent_present')} label="Respondent Present" />
-                <Checkbox checked={form.respondent_biometric} onChange={set('respondent_biometric')} label="Respondent Biometric" />
+            <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                        <Checkbox checked={form.petitioner_present} onChange={set('petitioner_present')} label="Petitioner Present" />
+                        <Checkbox checked={form.petitioner_biometric} onChange={set('petitioner_biometric')} label="Petitioner Biometric" />
+                    </div>
+                    {form.petitioner_present && (
+                        <PartyPhotoCapture
+                            label="Petitioner"
+                            photo={petitionerPhoto}
+                            preview={petitionerPreview}
+                            onCapture={(blob, preview, err) => {
+                                if (err) setPhotoError(err);
+                                else {
+                                    setPhotoError('');
+                                    setPetitionerPhoto(blob);
+                                    setPetitionerPreview(preview);
+                                }
+                            }}
+                            onRetake={retakePetitioner}
+                        />
+                    )}
+                </div>
+                <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
+                    <div className="space-y-2">
+                        <Checkbox checked={form.respondent_present} onChange={set('respondent_present')} label="Respondent Present" />
+                        <Checkbox checked={form.respondent_biometric} onChange={set('respondent_biometric')} label="Respondent Biometric" />
+                    </div>
+                    {form.respondent_present && (
+                        <PartyPhotoCapture
+                            label="Respondent"
+                            photo={respondentPhoto}
+                            preview={respondentPreview}
+                            onCapture={(blob, preview, err) => {
+                                if (err) setPhotoError(err);
+                                else {
+                                    setPhotoError('');
+                                    setRespondentPhoto(blob);
+                                    setRespondentPreview(preview);
+                                }
+                            }}
+                            onRetake={retakeRespondent}
+                        />
+                    )}
+                </div>
+                <ErrorText>{photoError}</ErrorText>
             </div>
 
             <Field label="Petitioner Statement (optional)">
@@ -123,6 +257,8 @@ export function AddHearingForm({ role, caseId, queryKeyPrefix, onDone }) {
 }
 
 export function ProceedingsList({ proceedings }) {
+    const [previewDoc, setPreviewDoc] = useState(null);
+
     if (!proceedings || proceedings.length === 0) {
         return <p className="text-xs text-ink-faint">No hearings recorded yet.</p>;
     }
@@ -135,14 +271,37 @@ export function ProceedingsList({ proceedings }) {
                         <span className="text-xs font-bold text-ink">Hearing {i + 1} · {p.proc_no}</span>
                         <span className="text-[11px] text-ink-faint">{p.date}</span>
                     </div>
-                    <div className="text-[11px] text-ink-muted">
-                        Petitioner: {p.petitioner_present ? 'Present' : 'Absent'}{p.petitioner_biometric ? ' ✓' : ''} · Respondent: {p.respondent_present ? 'Present' : 'Absent'}{p.respondent_biometric ? ' ✓' : ''}
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink-muted">
+                        <span className="flex items-center gap-1.5">
+                            Petitioner: {p.petitioner_present ? 'Present' : 'Absent'}{p.petitioner_biometric ? ' ✓' : ''}
+                            {p.petitioner_photo_url && (
+                                <button
+                                    onClick={() => setPreviewDoc({ label: `Petitioner — Hearing ${i + 1}`, file_url: p.petitioner_photo_url })}
+                                    className="shrink-0"
+                                >
+                                    <img src={p.petitioner_photo_url} alt="Petitioner" className="h-8 w-8 rounded-md border border-border object-cover" />
+                                </button>
+                            )}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            Respondent: {p.respondent_present ? 'Present' : 'Absent'}{p.respondent_biometric ? ' ✓' : ''}
+                            {p.respondent_photo_url && (
+                                <button
+                                    onClick={() => setPreviewDoc({ label: `Respondent — Hearing ${i + 1}`, file_url: p.respondent_photo_url })}
+                                    className="shrink-0"
+                                >
+                                    <img src={p.respondent_photo_url} alt="Respondent" className="h-8 w-8 rounded-md border border-border object-cover" />
+                                </button>
+                            )}
+                        </span>
                     </div>
                     {p.reconciliation && <div className="mt-1 text-[11px] text-ink-muted">Reconciliation: {p.reconciliation}</div>}
                     {p.adjourned && <div className="mt-1 text-[11px] font-medium text-accent-700">Adjourned — Next hearing: {p.next_hearing_date}</div>}
                     {p.notice_issued && <div className="mt-1 text-[11px] font-medium text-info">Notice {p.notice_ref} issued {p.notice_date}</div>}
                 </div>
             ))}
+
+            <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
         </div>
     );
 }
