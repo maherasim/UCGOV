@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class AttendanceRecordResource extends JsonResource
 {
@@ -21,6 +22,7 @@ class AttendanceRecordResource extends JsonResource
             'lat' => $this->lat,
             'lng' => $this->lng,
             'distance_meters' => $this->distance_meters,
+            'photo_url' => $this->photo_path ? Storage::disk('public')->url($this->photo_path) : null,
         ];
     }
 }

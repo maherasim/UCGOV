@@ -17,10 +17,18 @@ use App\Models\UnionCouncil;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Laravel\Passkeys\Actions\GenerateVerificationOptions;
 use Laravel\Passkeys\Actions\VerifyPasskey;
 use Laravel\Passkeys\Support\WebAuthn;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AttendanceController extends Controller
 {
@@ -68,10 +76,20 @@ class AttendanceController extends Controller
             throw ValidationException::withMessages(['lat' => 'Attendance already marked for today.']);
         }
 
-        // Verifies the WebAuthn assertion against this secretary's own enrolled
-        // credential — throws (422) if the fingerprint doesn't match, is stale, or
-        // was replayed. Nothing below runs unless this genuinely succeeds.
-        $verifyPasskey($request->credential(), $request->verificationOptions(), $user);
+        // Best-effort fingerprint check — every secretary enrolls once at first
+        // login, but a failed/skipped/unsupported scan on any given day must never
+        // block attendance. GPS + the selfie photo below are what's actually required.
+        $biometricVerified = false;
+        $credential = $request->credential();
+        $verificationOptions = $request->verificationOptions();
+        if ($credential && $verificationOptions) {
+            try {
+                $verifyPasskey($credential, $verificationOptions, $user);
+                $biometricVerified = true;
+            } catch (\Throwable) {
+                $biometricVerified = false;
+            }
+        }
 
         $distance = ($uc->lat && $uc->lng)
             ? $this->distanceMeters((float) $uc->lat, (float) $uc->lng, $request->float('lat'), $request->float('lng'))
@@ -80,6 +98,7 @@ class AttendanceController extends Controller
 
         $now = Carbon::now();
         $status = $now->format('H:i') > '09:15' ? 'late' : 'present';
+        $photoPath = $request->file('photo')->store('attendance-photos', 'public');
 
         $record = AttendanceRecord::create([
             'secretary_id' => $user->id,
@@ -88,10 +107,11 @@ class AttendanceController extends Controller
             'check_in_time' => $now->format('H:i:s'),
             'status' => $status,
             'inside_geofence' => $insideGeofence,
-            'biometric_verified' => true,
+            'biometric_verified' => $biometricVerified,
             'lat' => $request->float('lat'),
             'lng' => $request->float('lng'),
             'distance_meters' => $distance,
+            'photo_path' => $photoPath,
             'device_gmail' => $user->email,
         ]);
 
@@ -190,17 +210,43 @@ class AttendanceController extends Controller
         return new MovementLogResource($log->load(['secretary', 'unionCouncil']));
     }
 
+    /**
+     * Accepts optional union_council_id/from/to filters — the same three the Excel
+     * export takes, so the on-screen list and the exported file always agree.
+     */
     public function indexForAdlg(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
-        $records = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->with(['secretary', 'unionCouncil'])
-            ->latest('attendance_date')
-            ->take(200)
-            ->get();
+        $base = AttendanceRecord::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId));
 
-        return AttendanceRecordResource::collection($records);
+        $query = (clone $base)->with(['secretary', 'unionCouncil']);
+        $this->applyAttendanceFilters($request, $query);
+
+        $records = $query->latest('attendance_date')->take(500)->get();
+        $today = Carbon::today()->toDateString();
+
+        return AttendanceRecordResource::collection($records)->additional([
+            'meta' => [
+                'total' => (clone $base)->count(),
+                'today' => (clone $base)->where('attendance_date', $today)->count(),
+                'union_councils' => UnionCouncil::where('tehsil_id', $tehsilId)->count(),
+                'filtered' => $records->count(),
+            ],
+        ]);
+    }
+
+    protected function applyAttendanceFilters(Request $request, $query): void
+    {
+        if ($request->filled('union_council_id')) {
+            $query->where('union_council_id', $request->integer('union_council_id'));
+        }
+        if ($request->filled('from')) {
+            $query->where('attendance_date', '>=', $request->date('from')->toDateString());
+        }
+        if ($request->filled('to')) {
+            $query->where('attendance_date', '<=', $request->date('to')->toDateString());
+        }
     }
 
     public function movementIndexForAdlg(Request $request)
@@ -278,56 +324,184 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Per-UC attendance snapshot for today — one row per UC in the ADLG's tehsil, whether or
-     * not that UC's secretary checked in. Mirrors the prototype's 10AM popup export.
+     * Styled Excel workbook (not CSV) — a "UC Summary" sheet (per-UC present/absent for
+     * the filtered period) plus an "Attendance Detail" sheet (one row per check-in, with
+     * the secretary's selfie embedded and a clickable map link). Accepts the same
+     * union_council_id/from/to filters as indexForAdlg so the file always matches
+     * whatever the ADLG is looking at on screen.
      */
     public function analyticsExportForAdlg(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
-        $today = Carbon::today()->toDateString();
 
-        $ucs = UnionCouncil::where('tehsil_id', $tehsilId)->where('active', true)->orderBy('uc_no')->get();
+        $from = $request->filled('from') ? $request->date('from') : Carbon::today();
+        $to = $request->filled('to') ? $request->date('to') : Carbon::today();
 
-        $todayRecords = AttendanceRecord::whereIn('union_council_id', $ucs->pluck('id'))
-            ->where('attendance_date', $today)
-            ->with('secretary')
-            ->get()
-            ->keyBy('union_council_id');
+        $ucsQuery = UnionCouncil::where('tehsil_id', $tehsilId)->where('active', true);
+        if ($request->filled('union_council_id')) {
+            $ucsQuery->where('id', $request->integer('union_council_id'));
+        }
+        $ucs = $ucsQuery->orderBy('uc_no')->get();
 
-        $rows = ['UC No,UC Name,Secretary,Check-in Time,Status,Geofence,Biometric,GPS Lat,GPS Lng'];
+        $records = AttendanceRecord::whereIn('union_council_id', $ucs->pluck('id'))
+            ->whereBetween('attendance_date', [$from->toDateString(), $to->toDateString()])
+            ->with(['secretary', 'unionCouncil'])
+            ->orderBy('attendance_date')
+            ->orderBy('check_in_time')
+            ->get();
+
+        $recordsByUc = $records->groupBy('union_council_id');
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('Attendance Report');
+
+        $this->buildAttendanceSummarySheet($spreadsheet->getActiveSheet(), $ucs, $recordsByUc, $from, $to, $request);
+        $this->buildAttendanceDetailSheet($spreadsheet->createSheet(), $records);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $filename = 'Attendance_'.$from->toDateString().'_to_'.$to->toDateString().'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    protected function buildAttendanceSummarySheet(
+        Worksheet $sheet,
+        $ucs,
+        $recordsByUc,
+        Carbon $from,
+        Carbon $to,
+        Request $request
+    ): void {
+        $sheet->setTitle('UC Summary');
+
+        $sheet->setCellValue('A1', 'UC GOVERNANCE PLATFORM — ATTENDANCE SUMMARY');
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB('0B6D3A');
+
+        $periodLabel = $from->isSameDay($to)
+            ? 'Report date: '.$from->toFormattedDateString()
+            : 'Report period: '.$from->toFormattedDateString().' → '.$to->toFormattedDateString();
+        if ($request->filled('union_council_id') && $ucs->isNotEmpty()) {
+            $periodLabel .= ' · UC filter: '.$ucs->first()->name;
+        }
+        $sheet->setCellValue('A2', $periodLabel);
+        $sheet->mergeCells('A2:E2');
+        $sheet->getStyle('A2')->getFont()->setItalic(true)->setSize(10)->getColor()->setRGB('52616B');
+
+        $headerRow = 4;
+        foreach (['UC No', 'UC Name', 'Status', 'Marks in Period', 'Last Check-in'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->styleHeaderRow($sheet, "A{$headerRow}:E{$headerRow}");
+
+        $row = $headerRow + 1;
+        $presentCount = 0;
         foreach ($ucs as $uc) {
-            $rec = $todayRecords->get($uc->id);
-            $rows[] = implode(',', [
-                $uc->uc_no,
-                '"'.str_replace('"', '""', $uc->name).'"',
-                $rec ? '"'.str_replace('"', '""', $rec->secretary->name).'"' : 'Absent',
-                $rec ? $rec->check_in_time : '---',
-                $rec ? $rec->status : 'Absent',
-                $rec ? ($rec->inside_geofence ? 'Inside' : 'Outside') : 'N/A',
-                $rec ? ($rec->biometric_verified ? 'Yes' : 'No') : 'N/A',
-                $rec ? $rec->lat : '',
-                $rec ? $rec->lng : '',
-            ]);
+            $ucRecords = $recordsByUc->get($uc->id, collect());
+            $present = $ucRecords->isNotEmpty();
+            if ($present) {
+                $presentCount++;
+            }
+            $last = $ucRecords->last();
+
+            $sheet->setCellValue("A{$row}", $uc->uc_no);
+            $sheet->setCellValue("B{$row}", $uc->name);
+            $sheet->setCellValue("C{$row}", $present ? 'Present' : 'Absent');
+            $sheet->setCellValue("D{$row}", $ucRecords->count());
+            $sheet->setCellValue("E{$row}", $last ? "{$last->attendance_date->toDateString()} {$last->check_in_time}" : '—');
+
+            $fill = $present ? 'E7F3EC' : 'FEE2E2';
+            $font = $present ? '0B6D3A' : 'DC2626';
+            $sheet->getStyle("C{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($fill);
+            $sheet->getStyle("C{$row}")->getFont()->setBold(true)->getColor()->setRGB($font);
+
+            $row++;
         }
 
-        $present = $todayRecords->count();
-        $insideGeofence = $todayRecords->filter(fn ($r) => $r->inside_geofence)->count();
-        $rows[] = '';
-        $rows[] = 'SUMMARY';
-        $rows[] = 'Total UCs,'.$ucs->count();
-        $rows[] = 'Present,'.$present;
-        $rows[] = 'Absent,'.($ucs->count() - $present);
-        $rows[] = 'Inside Geofence,'.$insideGeofence;
-        $rows[] = 'Outside Geofence,'.($present - $insideGeofence);
-        $rows[] = 'Attendance Rate,'.($ucs->count() ? round($present / $ucs->count() * 100) : 0).'%';
+        $totalUcs = $ucs->count();
+        $sheet->setCellValue("A{$row}", 'TOTAL');
+        $sheet->mergeCells("A{$row}:B{$row}");
+        $sheet->setCellValue("C{$row}", "{$presentCount} / {$totalUcs} present");
+        $sheet->mergeCells("C{$row}:E{$row}");
+        $sheet->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:E{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
 
-        $csv = implode("\n", $rows);
-        $filename = 'Attendance_Analytics_'.$today.'.csv';
+        foreach (['A', 'B', 'C', 'D', 'E'] as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        $sheet->getStyle("A{$headerRow}:E{$row}")->getBorders()->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E2E8E4');
+    }
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+    protected function buildAttendanceDetailSheet(Worksheet $sheet, $records): void
+    {
+        $sheet->setTitle('Attendance Detail');
+
+        $headers = ['Date', 'Check-in', 'UC No', 'UC Name', 'Secretary', 'Status', 'Geofence', 'Distance (m)', 'Fingerprint', 'Map', 'Selfie'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = chr(64 + count($headers)); // 'K' for 11 headers
+        $this->styleHeaderRow($sheet, "A1:{$lastCol}1");
+
+        foreach (['A' => 12, 'B' => 10, 'C' => 8, 'D' => 22, 'E' => 22, 'F' => 10, 'G' => 10, 'H' => 12, 'I' => 12, 'J' => 12, 'K' => 14] as $col => $width) {
+            $sheet->getColumnDimension($col)->setWidth($width);
+        }
+
+        $row = 2;
+        foreach ($records as $record) {
+            $sheet->setCellValue("A{$row}", $record->attendance_date->toDateString());
+            $sheet->setCellValue("B{$row}", $record->check_in_time);
+            $sheet->setCellValue("C{$row}", $record->unionCouncil?->uc_no);
+            $sheet->setCellValue("D{$row}", $record->unionCouncil?->name);
+            $sheet->setCellValue("E{$row}", $record->secretary?->name);
+            $sheet->setCellValue("F{$row}", ucfirst($record->status));
+            $sheet->setCellValue("G{$row}", $record->inside_geofence ? 'Inside' : 'Outside');
+            $sheet->setCellValue("H{$row}", $record->distance_meters);
+            $sheet->setCellValue("I{$row}", $record->biometric_verified ? 'Verified' : 'Not verified');
+            $sheet->getStyle("G{$row}")->getFont()->getColor()->setRGB($record->inside_geofence ? '0B6D3A' : 'DC2626');
+            $sheet->getStyle("I{$row}")->getFont()->getColor()->setRGB($record->biometric_verified ? '0B6D3A' : '94A3A0');
+
+            if ($record->lat && $record->lng) {
+                $sheet->setCellValue("J{$row}", 'View on map');
+                $sheet->getCell("J{$row}")->getHyperlink()->setUrl("https://maps.google.com/?q={$record->lat},{$record->lng}");
+                $sheet->getStyle("J{$row}")->getFont()->setUnderline(true)->getColor()->setRGB('2563EB');
+            }
+
+            if ($record->photo_path && Storage::disk('public')->exists($record->photo_path)) {
+                $sheet->getRowDimension($row)->setRowHeight(54);
+                $drawing = new Drawing;
+                $drawing->setPath(Storage::disk('public')->path($record->photo_path));
+                $drawing->setHeight(50);
+                $drawing->setOffsetX(4);
+                $drawing->setOffsetY(2);
+                $drawing->setCoordinates("K{$row}");
+                $drawing->setWorksheet($sheet);
+            }
+
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $sheet->setAutoFilter("A1:{$lastCol}{$lastRow}");
+            $sheet->getStyle("A1:{$lastCol}{$lastRow}")->getBorders()->getAllBorders()
+                ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E2E8E4');
+        }
+        $sheet->freezePane('A2');
+    }
+
+    protected function styleHeaderRow(Worksheet $sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0B6D3A');
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($range)->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER);
     }
 
     public function movementExportForAdlg(Request $request)

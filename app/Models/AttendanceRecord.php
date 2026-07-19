@@ -18,6 +18,7 @@ class AttendanceRecord extends Model
         'lat',
         'lng',
         'distance_meters',
+        'photo_path',
         'device_gmail',
     ];
 
