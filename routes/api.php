@@ -151,6 +151,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases-export', [LbrCaseController::class, 'export']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForAdlg']);
         Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
+        Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequest']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
     });
 
@@ -187,6 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForSecretary']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForSecretary']);
         Route::post('/lbr-cases', [LbrCaseController::class, 'storeForSecretary']);
+        Route::post('/lbr-cases/delay-request', [LbrCaseController::class, 'storeDelayRequest']);
+        Route::post('/lbr-cases/{lbrCase}/resubmit-delay-request', [LbrCaseController::class, 'resubmitDelayRequest']);
+        Route::post('/lbr-cases/{lbrCase}/complete-application', [LbrCaseController::class, 'completeApplication']);
         Route::post('/lbr-cases/{lbrCase}/register-certificate', [LbrCaseController::class, 'registerCertificate']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
     });

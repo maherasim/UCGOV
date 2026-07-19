@@ -14,6 +14,9 @@ class LbrCaseResource extends JsonResource
         'REJECTED' => 'Rejected',
         'RETURNED' => 'Returned for Correction',
         'REGISTERED' => 'Birth Registered',
+        'PENDING_DELAY_APPROVAL' => 'Pending ADLG Delay Approval',
+        'DELAY_APPROVED' => 'Delay Approved — Complete Application',
+        'DELAY_RETURNED' => 'Delay Request Returned',
     ];
 
     public function toArray(Request $request): array

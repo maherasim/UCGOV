@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\CompleteLbrApplicationRequest;
 use App\Http\Requests\Api\RegisterLbrCertificateRequest;
 use App\Http\Requests\Api\ReviewLbrCaseRequest;
+use App\Http\Requests\Api\ReviewLbrDelayRequest;
 use App\Http\Requests\Api\StoreLbrCaseRequest;
+use App\Http\Requests\Api\StoreLbrDelayRequest;
 use App\Http\Resources\LbrCaseResource;
 use App\Models\AuditLog;
+use App\Models\CaseNotification;
 use App\Models\LbrCase;
 use App\Models\LbrDocument;
 use App\Models\LbrTimelineEvent;
@@ -28,6 +32,9 @@ class LbrCaseController extends Controller
         'REJECTED' => 'danger',
         'RETURNED' => 'warning',
         'REGISTERED' => 'success',
+        'PENDING_DELAY_APPROVAL' => 'info',
+        'DELAY_APPROVED' => 'success',
+        'DELAY_RETURNED' => 'warning',
     ];
 
     public const DOC_LABELS = [
@@ -100,18 +107,7 @@ class LbrCaseController extends Controller
                 'secretary_remarks' => $request->input('secretary_remarks'),
             ]);
 
-            foreach (self::DOC_LABELS as $key => $label) {
-                if ($request->hasFile("documents.{$key}")) {
-                    $path = $request->file("documents.{$key}")->store('lbr-documents', 'public');
-                    LbrDocument::create([
-                        'lbr_case_id' => $case->id,
-                        'doc_key' => $key,
-                        'label' => $label,
-                        'file_path' => $path,
-                        'uploaded_at' => now(),
-                    ]);
-                }
-            }
+            $this->storeLbrDocuments($case, $request);
 
             LbrTimelineEvent::create([
                 'lbr_case_id' => $case->id,
@@ -133,6 +129,259 @@ class LbrCaseController extends Controller
         });
 
         return new LbrCaseResource($case->load($this->relations()));
+    }
+
+    protected function storeLbrDocuments(LbrCase $case, Request $request): void
+    {
+        foreach (self::DOC_LABELS as $key => $label) {
+            if ($request->hasFile("documents.{$key}")) {
+                $path = $request->file("documents.{$key}")->store('lbr-documents', 'public');
+                LbrDocument::create([
+                    'lbr_case_id' => $case->id,
+                    'doc_key' => $key,
+                    'label' => $label,
+                    'file_path' => $path,
+                    'uploaded_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Over-7-years cases start here: a lightweight "delay approval" request with
+     * just enough basic info for the ADLG to judge whether the delay is acceptable.
+     * No documents yet — those are only collected once the delay itself is approved
+     * (completeApplication()), so the ADLG's queue never gets to see missing paperwork
+     * on a case that's still years away from the paperwork stage.
+     */
+    public function storeDelayRequest(StoreLbrDelayRequest $request)
+    {
+        $user = $request->user();
+        $uc = $user->secretaryProfile->unionCouncil;
+
+        $dob = Carbon::parse($request->input('dob'));
+        $age = round($dob->floatDiffInYears(now()), 1);
+
+        $lbrId = 'LBR-'.now()->year.'-'.str_pad((string) (LbrCase::count() + 1), 4, '0', STR_PAD_LEFT);
+        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
+
+        $case = DB::transaction(function () use ($request, $user, $uc, $dob, $age, $lbrId, $adlgId) {
+            $case = LbrCase::create([
+                'lbr_id' => $lbrId,
+                'status' => 'PENDING_DELAY_APPROVAL',
+                'category' => '7+',
+                'union_council_id' => $uc->id,
+                'secretary_id' => $user->id,
+                'adlg_id' => $adlgId,
+                'dob' => $dob->toDateString(),
+                'age_at_application' => $age,
+                'delay_reason' => $request->string('delay_reason')->toString(),
+                'child_name' => $request->string('child_name')->toString(),
+                'child_gender' => $request->string('child_gender')->toString(),
+                'applicant_name' => $request->string('applicant_name')->toString(),
+                'applicant_cnic' => $request->string('applicant_cnic')->toString(),
+                'applicant_phone' => $request->input('applicant_phone'),
+                'secretary_remarks' => $request->input('secretary_remarks'),
+            ]);
+
+            LbrTimelineEvent::create([
+                'lbr_case_id' => $case->id,
+                'stage' => 'PENDING_DELAY_APPROVAL',
+                'event_date' => now()->toDateString(),
+                'actor_user_id' => $user->id,
+                'note' => "Delay approval request submitted (over 7 years). LBR-ID: {$lbrId}. Awaiting ADLG's decision before the full application can be prepared.",
+            ]);
+
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'LBR_DELAY_REQUESTED',
+                'entity_type' => 'LbrCase',
+                'entity_id' => $case->id,
+                'note' => "LBR delay approval requested: {$lbrId} by {$user->name}",
+            ]);
+
+            if ($adlgId) {
+                CaseNotification::create([
+                    'to_user_id' => $adlgId,
+                    'from_user_id' => $user->id,
+                    'type' => 'LBR_DELAY_REQUESTED',
+                    'message' => "{$user->name} requested delay approval for a birth registration over 7 years old ({$lbrId} — {$case->child_name}).",
+                ]);
+            }
+
+            return $case;
+        });
+
+        return new LbrCaseResource($case->load($this->relations()));
+    }
+
+    /**
+     * Same lightweight fields as storeDelayRequest() — used when the ADLG returns a
+     * delay request for correction. Sends it straight back into the ADLG's queue.
+     */
+    public function resubmitDelayRequest(StoreLbrDelayRequest $request, LbrCase $lbrCase)
+    {
+        $this->authorizeOwnUc($request, $lbrCase);
+        abort_unless($lbrCase->status === 'DELAY_RETURNED', 422, 'This case is not awaiting resubmission.');
+
+        $user = $request->user();
+        $dob = Carbon::parse($request->input('dob'));
+        $age = round($dob->floatDiffInYears(now()), 1);
+
+        DB::transaction(function () use ($request, $lbrCase, $user, $dob, $age) {
+            $lbrCase->update([
+                'status' => 'PENDING_DELAY_APPROVAL',
+                'dob' => $dob->toDateString(),
+                'age_at_application' => $age,
+                'delay_reason' => $request->string('delay_reason')->toString(),
+                'child_name' => $request->string('child_name')->toString(),
+                'child_gender' => $request->string('child_gender')->toString(),
+                'applicant_name' => $request->string('applicant_name')->toString(),
+                'applicant_cnic' => $request->string('applicant_cnic')->toString(),
+                'applicant_phone' => $request->input('applicant_phone'),
+                'secretary_remarks' => $request->input('secretary_remarks'),
+            ]);
+
+            LbrTimelineEvent::create([
+                'lbr_case_id' => $lbrCase->id,
+                'stage' => 'PENDING_DELAY_APPROVAL',
+                'event_date' => now()->toDateString(),
+                'actor_user_id' => $user->id,
+                'note' => 'Delay approval request resubmitted after correction.',
+            ]);
+
+            if ($lbrCase->adlg_id) {
+                CaseNotification::create([
+                    'to_user_id' => $lbrCase->adlg_id,
+                    'from_user_id' => $user->id,
+                    'type' => 'LBR_DELAY_REQUESTED',
+                    'message' => "{$user->name} resubmitted the delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name}.",
+                ]);
+            }
+        });
+
+        return new LbrCaseResource($lbrCase->fresh($this->relations()));
+    }
+
+    /**
+     * ADLG's decision on the lightweight delay request. Approve unlocks the full
+     * application (completeApplication()); Reject ends the case; Return sends it
+     * back to the secretary for correction and resubmission.
+     */
+    public function reviewDelayRequest(ReviewLbrDelayRequest $request, LbrCase $lbrCase)
+    {
+        $this->authorizeOwnTehsil($request, $lbrCase);
+        abort_unless($lbrCase->status === 'PENDING_DELAY_APPROVAL', 422, 'This delay request has already been decided.');
+
+        $statusFor = [
+            'APPROVED' => 'DELAY_APPROVED',
+            'REJECTED' => 'REJECTED',
+            'RETURNED' => 'DELAY_RETURNED',
+        ];
+
+        DB::transaction(function () use ($request, $lbrCase, $statusFor) {
+            $action = $request->string('action')->toString();
+            $newStatus = $statusFor[$action];
+
+            $lbrCase->update([
+                'status' => $newStatus,
+                'adlg_id' => $request->user()->id,
+                'adlg_observations' => $request->string('observations')->toString(),
+            ]);
+
+            $messages = [
+                'APPROVED' => 'Delay APPROVED by ADLG. Secretary may now complete the full application. Remarks: '.$request->string('observations'),
+                'REJECTED' => 'Delay approval REJECTED by ADLG. Reason: '.$request->string('observations'),
+                'RETURNED' => 'Delay request returned for correction by ADLG. Reason: '.$request->string('observations'),
+            ];
+
+            LbrTimelineEvent::create([
+                'lbr_case_id' => $lbrCase->id,
+                'stage' => $newStatus,
+                'event_date' => now()->toDateString(),
+                'actor_user_id' => $request->user()->id,
+                'note' => $messages[$action],
+            ]);
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'LBR_DELAY_'.$action,
+                'entity_type' => 'LbrCase',
+                'entity_id' => $lbrCase->id,
+                'note' => "{$lbrCase->lbr_id} delay request {$action} by ADLG",
+            ]);
+
+            CaseNotification::create([
+                'to_user_id' => $lbrCase->secretary_id,
+                'from_user_id' => $request->user()->id,
+                'type' => 'LBR_DELAY_'.$action,
+                'message' => match ($action) {
+                    'APPROVED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was approved. You may now complete the full application.",
+                    'REJECTED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was rejected.",
+                    'RETURNED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was returned for correction.",
+                },
+            ]);
+        });
+
+        return new LbrCaseResource($lbrCase->fresh($this->relations()));
+    }
+
+    /**
+     * Stage 2 of an over-7-years case: once the ADLG has approved the delay, the
+     * secretary fills in the remaining applicant/child details and uploads the
+     * standard document set. From here the case rejoins the normal FORWARDED flow —
+     * review() and registerCertificate() below are completely unaware this case ever
+     * went through a delay-approval stage.
+     */
+    public function completeApplication(CompleteLbrApplicationRequest $request, LbrCase $lbrCase)
+    {
+        $this->authorizeOwnUc($request, $lbrCase);
+        abort_unless($lbrCase->status === 'DELAY_APPROVED', 422, 'This case is not yet cleared to complete the application.');
+
+        $user = $request->user();
+
+        DB::transaction(function () use ($request, $lbrCase, $user) {
+            $lbrCase->update([
+                'status' => 'FORWARDED',
+                'child_birth_place' => $request->input('child_birth_place'),
+                'child_birth_type' => $request->input('child_birth_type', 'Hospital'),
+                'child_hospital' => $request->input('child_hospital'),
+                'applicant_relation' => $request->input('applicant_relation', 'Father'),
+                'applicant_father_name' => $request->input('applicant_father_name'),
+                'applicant_mother_name' => $request->input('applicant_mother_name'),
+                'applicant_address' => $request->input('applicant_address'),
+                'secretary_remarks' => $request->input('secretary_remarks', $lbrCase->secretary_remarks),
+            ]);
+
+            $this->storeLbrDocuments($lbrCase, $request);
+
+            LbrTimelineEvent::create([
+                'lbr_case_id' => $lbrCase->id,
+                'stage' => 'FORWARDED',
+                'event_date' => now()->toDateString(),
+                'actor_user_id' => $user->id,
+                'note' => 'Full application completed and documents uploaded. Forwarded electronically to ADLG for final review.',
+            ]);
+
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'LBR_APPLICATION_COMPLETED',
+                'entity_type' => 'LbrCase',
+                'entity_id' => $lbrCase->id,
+                'note' => "LBR application completed: {$lbrCase->lbr_id} by {$user->name}",
+            ]);
+
+            if ($lbrCase->adlg_id) {
+                CaseNotification::create([
+                    'to_user_id' => $lbrCase->adlg_id,
+                    'from_user_id' => $user->id,
+                    'type' => 'LBR_APPLICATION_COMPLETED',
+                    'message' => "{$user->name} completed the full application for {$lbrCase->lbr_id} — {$lbrCase->child_name}. Ready for final review.",
+                ]);
+            }
+        });
+
+        return new LbrCaseResource($lbrCase->fresh($this->relations()));
     }
 
     public function registerCertificate(RegisterLbrCertificateRequest $request, LbrCase $lbrCase)
