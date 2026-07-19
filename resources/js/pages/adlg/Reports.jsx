@@ -158,7 +158,7 @@ function ResponsesModal({ performa, onClose }) {
                         variant="ghost"
                         onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/performas/${performa.id}/responses/export`, '_blank')}
                     >
-                        📥 Export CSV
+                        📊 Export Excel
                     </Button>
                 </div>
             )}

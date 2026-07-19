@@ -15,6 +15,7 @@ use App\Models\MovementLog;
 use App\Models\SecretaryProfile;
 use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -23,15 +24,12 @@ use Laravel\Passkeys\Actions\GenerateVerificationOptions;
 use Laravel\Passkeys\Actions\VerifyPasskey;
 use Laravel\Passkeys\Support\WebAuthn;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AttendanceController extends Controller
 {
+    use StylesExcelSheets;
+
     /**
      * Haversine great-circle distance in meters — same formula the prototype used client-side.
      */
@@ -361,11 +359,7 @@ class AttendanceController extends Controller
 
         $filename = 'Attendance_'.$from->toDateString().'_to_'.$to->toDateString().'.xlsx';
 
-        return response()->streamDownload(function () use ($spreadsheet) {
-            (new Xlsx($spreadsheet))->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        return $this->xlDownload($spreadsheet, $filename);
     }
 
     protected function buildAttendanceSummarySheet(
@@ -378,25 +372,19 @@ class AttendanceController extends Controller
     ): void {
         $sheet->setTitle('UC Summary');
 
-        $sheet->setCellValue('A1', 'UC GOVERNANCE PLATFORM — ATTENDANCE SUMMARY');
-        $sheet->mergeCells('A1:E1');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB('0B6D3A');
-
         $periodLabel = $from->isSameDay($to)
             ? 'Report date: '.$from->toFormattedDateString()
             : 'Report period: '.$from->toFormattedDateString().' → '.$to->toFormattedDateString();
         if ($request->filled('union_council_id') && $ucs->isNotEmpty()) {
             $periodLabel .= ' · UC filter: '.$ucs->first()->name;
         }
-        $sheet->setCellValue('A2', $periodLabel);
-        $sheet->mergeCells('A2:E2');
-        $sheet->getStyle('A2')->getFont()->setItalic(true)->setSize(10)->getColor()->setRGB('52616B');
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — Attendance Summary', $periodLabel, 5);
 
         $headerRow = 4;
         foreach (['UC No', 'UC Name', 'Status', 'Marks in Period', 'Last Check-in'] as $i => $h) {
             $sheet->setCellValue([$i + 1, $headerRow], $h);
         }
-        $this->styleHeaderRow($sheet, "A{$headerRow}:E{$headerRow}");
+        $this->xlHeaderRow($sheet, "A{$headerRow}:E{$headerRow}");
 
         $row = $headerRow + 1;
         $presentCount = 0;
@@ -410,14 +398,9 @@ class AttendanceController extends Controller
 
             $sheet->setCellValue("A{$row}", $uc->uc_no);
             $sheet->setCellValue("B{$row}", $uc->name);
-            $sheet->setCellValue("C{$row}", $present ? 'Present' : 'Absent');
+            $this->xlStatusCell($sheet, "C{$row}", $present ? 'Present' : 'Absent', $present ? 'success' : 'danger');
             $sheet->setCellValue("D{$row}", $ucRecords->count());
             $sheet->setCellValue("E{$row}", $last ? "{$last->attendance_date->toDateString()} {$last->check_in_time}" : '—');
-
-            $fill = $present ? 'E7F3EC' : 'FEE2E2';
-            $font = $present ? '0B6D3A' : 'DC2626';
-            $sheet->getStyle("C{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($fill);
-            $sheet->getStyle("C{$row}")->getFont()->setBold(true)->getColor()->setRGB($font);
 
             $row++;
         }
@@ -428,13 +411,10 @@ class AttendanceController extends Controller
         $sheet->setCellValue("C{$row}", "{$presentCount} / {$totalUcs} present");
         $sheet->mergeCells("C{$row}:E{$row}");
         $sheet->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
-        $sheet->getStyle("A{$row}:E{$row}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A{$row}:E{$row}")->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
-        foreach (['A', 'B', 'C', 'D', 'E'] as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-        $sheet->getStyle("A{$headerRow}:E{$row}")->getBorders()->getAllBorders()
-            ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E2E8E4');
+        $this->xlAutoSize($sheet, ['A', 'B', 'C', 'D', 'E']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:E{$headerRow}", "A{$headerRow}:E{$row}", freezeBelowHeader: false);
     }
 
     protected function buildAttendanceDetailSheet(Worksheet $sheet, $records): void
@@ -445,12 +425,9 @@ class AttendanceController extends Controller
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
-        $lastCol = chr(64 + count($headers)); // 'K' for 11 headers
-        $this->styleHeaderRow($sheet, "A1:{$lastCol}1");
-
-        foreach (['A' => 12, 'B' => 10, 'C' => 8, 'D' => 22, 'E' => 22, 'F' => 10, 'G' => 10, 'H' => 12, 'I' => 12, 'J' => 12, 'K' => 14] as $col => $width) {
-            $sheet->getColumnDimension($col)->setWidth($width);
-        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, ['A' => 12, 'B' => 10, 'C' => 8, 'D' => 22, 'E' => 22, 'F' => 10, 'G' => 10, 'H' => 12, 'I' => 12, 'J' => 12, 'K' => 14]);
 
         $row = 2;
         foreach ($records as $record) {
@@ -459,28 +436,17 @@ class AttendanceController extends Controller
             $sheet->setCellValue("C{$row}", $record->unionCouncil?->uc_no);
             $sheet->setCellValue("D{$row}", $record->unionCouncil?->name);
             $sheet->setCellValue("E{$row}", $record->secretary?->name);
-            $sheet->setCellValue("F{$row}", ucfirst($record->status));
-            $sheet->setCellValue("G{$row}", $record->inside_geofence ? 'Inside' : 'Outside');
+            $this->xlStatusCell($sheet, "F{$row}", ucfirst($record->status), $record->status === 'present' ? 'success' : 'warning');
+            $this->xlStatusCell($sheet, "G{$row}", $record->inside_geofence ? 'Inside' : 'Outside', $record->inside_geofence ? 'success' : 'danger');
             $sheet->setCellValue("H{$row}", $record->distance_meters);
-            $sheet->setCellValue("I{$row}", $record->biometric_verified ? 'Verified' : 'Not verified');
-            $sheet->getStyle("G{$row}")->getFont()->getColor()->setRGB($record->inside_geofence ? '0B6D3A' : 'DC2626');
-            $sheet->getStyle("I{$row}")->getFont()->getColor()->setRGB($record->biometric_verified ? '0B6D3A' : '94A3A0');
+            $this->xlStatusCell($sheet, "I{$row}", $record->biometric_verified ? 'Verified' : 'Not verified', $record->biometric_verified ? 'success' : 'neutral');
 
             if ($record->lat && $record->lng) {
-                $sheet->setCellValue("J{$row}", 'View on map');
-                $sheet->getCell("J{$row}")->getHyperlink()->setUrl("https://maps.google.com/?q={$record->lat},{$record->lng}");
-                $sheet->getStyle("J{$row}")->getFont()->setUnderline(true)->getColor()->setRGB('2563EB');
+                $this->xlHyperlink($sheet, "J{$row}", "https://maps.google.com/?q={$record->lat},{$record->lng}", 'View on map');
             }
 
             if ($record->photo_path && Storage::disk('public')->exists($record->photo_path)) {
-                $sheet->getRowDimension($row)->setRowHeight(54);
-                $drawing = new Drawing;
-                $drawing->setPath(Storage::disk('public')->path($record->photo_path));
-                $drawing->setHeight(50);
-                $drawing->setOffsetX(4);
-                $drawing->setOffsetY(2);
-                $drawing->setCoordinates("K{$row}");
-                $drawing->setWorksheet($sheet);
+                $this->xlEmbedImage($sheet, "K{$row}", Storage::disk('public')->path($record->photo_path), $row);
             }
 
             $row++;
@@ -488,22 +454,15 @@ class AttendanceController extends Controller
 
         $lastRow = $row - 1;
         if ($lastRow >= 2) {
-            $sheet->setAutoFilter("A1:{$lastCol}{$lastRow}");
-            $sheet->getStyle("A1:{$lastCol}{$lastRow}")->getBorders()->getAllBorders()
-                ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E2E8E4');
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
         }
-        $sheet->freezePane('A2');
     }
 
-    protected function styleHeaderRow(Worksheet $sheet, string $range): void
-    {
-        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0B6D3A');
-        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle($range)->getAlignment()
-            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
-            ->setVertical(Alignment::VERTICAL_CENTER);
-    }
-
+    /**
+     * A "Secretary Summary" sheet (movement counts + max distance per secretary — who's
+     * leaving their UC most often) plus a "Movement Detail" sheet with reason- and
+     * distance-severity-colored rows.
+     */
     public function movementExportForAdlg(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -513,26 +472,82 @@ class AttendanceController extends Controller
             ->latest('occurred_at')
             ->get();
 
-        $rows = ['Date,Time,Secretary,UC,Tehsil,Distance (m),Reason,Details'];
-        foreach ($logs as $log) {
-            $rows[] = implode(',', [
-                $log->occurred_at->toDateString(),
-                $log->occurred_at->format('H:i:s'),
-                '"'.str_replace('"', '""', $log->secretary->name).'"',
-                '"'.str_replace('"', '""', $log->unionCouncil->name).'"',
-                '"'.($log->unionCouncil->tehsil?->name ?? '').'"',
-                $log->distance_meters,
-                '"'.str_replace('"', '""', $log->reason).'"',
-                '"'.str_replace('"', '""', $log->details ?? '').'"',
-            ]);
+        $logsBySecretary = $logs->groupBy('secretary_id');
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('Movement Registry');
+
+        $this->buildMovementSummarySheet($spreadsheet->getActiveSheet(), $logsBySecretary);
+        $this->buildMovementDetailSheet($spreadsheet->createSheet(), $logs);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Movement_Registry_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildMovementSummarySheet(Worksheet $sheet, $logsBySecretary): void
+    {
+        $sheet->setTitle('Secretary Summary');
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — Movement Registry Summary', 'All logged out-of-office movements, all-time', 4);
+
+        $headerRow = 4;
+        foreach (['Secretary', 'Union Council', 'Movements Logged', 'Max Distance (m)'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:D{$headerRow}");
+
+        $row = $headerRow + 1;
+        foreach ($logsBySecretary as $secLogs) {
+            $first = $secLogs->first();
+            $maxDistance = $secLogs->max('distance_meters');
+
+            $sheet->setCellValue("A{$row}", $first->secretary->name);
+            $sheet->setCellValue("B{$row}", $first->unionCouncil->name);
+            $sheet->setCellValue("C{$row}", $secLogs->count());
+            $this->xlStatusCell($sheet, "D{$row}", (string) $maxDistance, $maxDistance > 1000 ? 'danger' : ($maxDistance > 300 ? 'warning' : 'success'));
+
+            $row++;
         }
 
-        $csv = implode("\n", $rows);
-        $filename = 'Movement_Registry_'.now()->toDateString().'.csv';
+        $this->xlAutoSize($sheet, ['A', 'B', 'C', 'D']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:D{$headerRow}", "A{$headerRow}:D".($row - 1), freezeBelowHeader: false);
+    }
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+    protected function buildMovementDetailSheet(Worksheet $sheet, $logs): void
+    {
+        $sheet->setTitle('Movement Detail');
+
+        $headers = ['Date', 'Time', 'Secretary', 'UC', 'Tehsil', 'Reason', 'Distance (m)', 'Details'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, ['A' => 12, 'B' => 10, 'C' => 22, 'D' => 22, 'E' => 16, 'F' => 18, 'G' => 12, 'H' => 32]);
+
+        $reasonTone = [
+            'Court Hearing' => 'danger',
+            'Field Visit' => 'info',
+            'Tehsil Office Meeting' => 'warning',
+            'Document Delivery' => 'success',
+        ];
+
+        $row = 2;
+        foreach ($logs as $log) {
+            $sheet->setCellValue("A{$row}", $log->occurred_at->toDateString());
+            $sheet->setCellValue("B{$row}", $log->occurred_at->format('H:i'));
+            $sheet->setCellValue("C{$row}", $log->secretary->name);
+            $sheet->setCellValue("D{$row}", $log->unionCouncil->name);
+            $sheet->setCellValue("E{$row}", $log->unionCouncil->tehsil?->name);
+            $this->xlStatusCell($sheet, "F{$row}", $log->reason, $reasonTone[$log->reason] ?? 'neutral');
+            $this->xlStatusCell($sheet, "G{$row}", (string) $log->distance_meters, $log->distance_meters > 1000 ? 'danger' : ($log->distance_meters > 300 ? 'warning' : 'success'));
+            $sheet->setCellValue("H{$row}", $log->details);
+
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
     }
 }

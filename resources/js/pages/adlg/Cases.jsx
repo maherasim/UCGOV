@@ -412,8 +412,13 @@ export default function Cases() {
             <div className="mb-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-ink">Divorce / Khula Registry</h1>
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/cases-export`, '_blank')}>
-                        💾 Export
+                    <Button
+                        variant="ghost"
+                        onClick={() =>
+                            window.open(`${APP_BASE_PATH}/api/adlg/cases-export${statusFilter ? `?status=${statusFilter}` : ''}`, '_blank')
+                        }
+                    >
+                        📊 Export Excel
                     </Button>
                     <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-56">
                         <option value="">All statuses</option>

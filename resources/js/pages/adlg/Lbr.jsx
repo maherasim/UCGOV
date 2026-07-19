@@ -211,8 +211,16 @@ export default function Lbr() {
                         <option value="RETURNED">Returned</option>
                         <option value="REGISTERED">Registered</option>
                     </Select>
-                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/lbr-cases-export`, '_blank')}>
-                        📥 Export
+                    <Button
+                        variant="ghost"
+                        onClick={() =>
+                            window.open(
+                                `${APP_BASE_PATH}/api/adlg/lbr-cases-export${statusFilter ? `?status=${statusFilter}` : ''}`,
+                                '_blank'
+                            )
+                        }
+                    >
+                        📊 Export Excel
                     </Button>
                 </div>
             </div>

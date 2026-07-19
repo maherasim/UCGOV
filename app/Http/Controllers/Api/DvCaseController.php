@@ -17,12 +17,28 @@ use App\Models\CaseNotification;
 use App\Models\CaseProceeding;
 use App\Models\CaseTimelineEvent;
 use App\Models\DvCase;
+use App\Support\Concerns\StylesExcelSheets;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class DvCaseController extends Controller
 {
+    use StylesExcelSheets;
+
+    protected const STATUS_TONE = [
+        'SUBMITTED' => 'info',
+        'SEEN' => 'warning',
+        'NOTICE_ISSUED' => 'warning',
+        'ARB_CONSTITUTED' => 'warning',
+        'IN_PROCEEDINGS' => 'warning',
+        'DISPOSED_RECONCILED' => 'success',
+        'DISPOSED_EFFECTIVE' => 'danger',
+        'FILED_NON_RESPONSE' => 'neutral',
+    ];
+
     public function index(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -430,39 +446,155 @@ class DvCaseController extends Controller
         return $pdf->download($filename);
     }
 
+    /**
+     * "Case Summary" (status distribution, colored to match the on-screen timeline
+     * stepper) + "Case Detail" (every field the case has — notice, arbitration,
+     * decision, not just the handful the old CSV carried) + "Hearing Proceedings"
+     * (one row per recorded hearing across every case). Respects the same status
+     * filter as the on-screen list.
+     */
     public function export(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
-        $cases = DvCase::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->with('unionCouncil')
-            ->withCount('proceedings')
-            ->latest('receipt_date')
-            ->get();
+        $query = DvCase::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with(['unionCouncil.tehsil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'proceedings']);
 
-        $rows = ['Case No,Type,UC,Tehsil,Petitioner,Pet CNIC,Respondent,Res CNIC,App Date,Status,Hearings'];
-        foreach ($cases as $c) {
-            $rows[] = implode(',', [
-                $c->case_no,
-                $c->type,
-                '"'.$c->unionCouncil->name.'"',
-                '"'.($c->unionCouncil->tehsil?->name ?? '').'"',
-                '"'.str_replace('"', '""', $c->divorcer_name).'"',
-                $c->divorcer_cnic,
-                '"'.str_replace('"', '""', $c->respondent_name).'"',
-                $c->respondent_cnic,
-                $c->receipt_date->toDateString(),
-                $c->status,
-                $c->proceedings_count,
-            ]);
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
         }
 
-        $csv = implode("\n", $rows);
-        $filename = 'Arbitration_Registry_'.now()->toDateString().'.csv';
+        $cases = $query->latest('receipt_date')->get();
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('Divorce/Khula Registry Report');
+
+        $this->buildDvSummarySheet($spreadsheet->getActiveSheet(), $cases, $request);
+        $this->buildDvDetailSheet($spreadsheet->createSheet(), $cases);
+        $this->buildDvProceedingsSheet($spreadsheet->createSheet(), $cases);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Arbitration_Registry_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildDvSummarySheet(Worksheet $sheet, $cases, Request $request): void
+    {
+        $sheet->setTitle('Case Summary');
+
+        $subtitle = 'All Divorce/Khula cases in this tehsil'.($request->filled('status')
+            ? ' · Status filter: '.(DvCaseResource::STATUS_LABELS[$request->string('status')->toString()] ?? $request->string('status'))
+            : '');
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — Divorce/Khula Registry Summary', $subtitle, 3);
+
+        $headerRow = 4;
+        foreach (['Status', 'Cases', 'Share'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:C{$headerRow}");
+
+        $total = $cases->count();
+        $byStatus = $cases->countBy('status');
+        $row = $headerRow + 1;
+        foreach (DvCaseResource::STATUS_LABELS as $status => $label) {
+            $count = $byStatus->get($status, 0);
+            $sheet->setCellValue("A{$row}", $label);
+            $this->xlStatusCell($sheet, "B{$row}", (string) $count, self::STATUS_TONE[$status] ?? 'neutral');
+            $sheet->setCellValue("C{$row}", $total ? round($count / $total * 100).'%' : '0%');
+            $row++;
+        }
+        $sheet->setCellValue("A{$row}", 'TOTAL');
+        $sheet->setCellValue("B{$row}", $total);
+        $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:C{$row}")->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $this->xlAutoSize($sheet, ['A', 'B', 'C']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:C{$headerRow}", "A{$headerRow}:C{$row}", freezeBelowHeader: false);
+    }
+
+    protected function buildDvDetailSheet(Worksheet $sheet, $cases): void
+    {
+        $sheet->setTitle('Case Detail');
+
+        $headers = [
+            'Case No', 'Type', 'Status', 'UC', 'Tehsil', 'Petitioner', 'Pet. CNIC', 'Pet. Phone',
+            'Respondent', 'Res. CNIC', 'Res. Phone', 'Marriage Date', 'Applied', 'Notice No.',
+            'Notice Hearing', 'Arbitration Constituted', 'Decision Order No.', 'Decision Date',
+            'Secretary', 'ADLG', 'Hearings',
+        ];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, [
+            'A' => 14, 'B' => 10, 'C' => 20, 'D' => 20, 'E' => 16, 'F' => 20, 'G' => 16, 'H' => 14,
+            'I' => 20, 'J' => 16, 'K' => 14, 'L' => 14, 'M' => 12, 'N' => 14, 'O' => 14, 'P' => 16,
+            'Q' => 16, 'R' => 14, 'S' => 18, 'T' => 18, 'U' => 10,
         ]);
+
+        $row = 2;
+        foreach ($cases as $c) {
+            $sheet->setCellValue("A{$row}", $c->case_no);
+            $sheet->setCellValue("B{$row}", ucfirst($c->type));
+            $this->xlStatusCell($sheet, "C{$row}", DvCaseResource::STATUS_LABELS[$c->status] ?? $c->status, self::STATUS_TONE[$c->status] ?? 'neutral');
+            $sheet->setCellValue("D{$row}", $c->unionCouncil->name);
+            $sheet->setCellValue("E{$row}", $c->unionCouncil->tehsil?->name);
+            $sheet->setCellValue("F{$row}", $c->divorcer_name);
+            $sheet->setCellValue("G{$row}", $c->divorcer_cnic);
+            $sheet->setCellValue("H{$row}", $c->divorcer_phone);
+            $sheet->setCellValue("I{$row}", $c->respondent_name);
+            $sheet->setCellValue("J{$row}", $c->respondent_cnic);
+            $sheet->setCellValue("K{$row}", $c->respondent_phone);
+            $sheet->setCellValue("L{$row}", $c->marriage_date?->toDateString());
+            $sheet->setCellValue("M{$row}", $c->receipt_date->toDateString());
+            $sheet->setCellValue("N{$row}", $c->notice?->notice_no);
+            $sheet->setCellValue("O{$row}", $c->notice?->hearing_date?->toDateString());
+            $sheet->setCellValue("P{$row}", $c->arbitration?->constituted_at?->toDateString());
+            $sheet->setCellValue("Q{$row}", $c->decision?->order_no);
+            $sheet->setCellValue("R{$row}", $c->decision?->decided_at?->toDateString());
+            $sheet->setCellValue("S{$row}", $c->secretary?->name);
+            $sheet->setCellValue("T{$row}", $c->adlg?->name);
+            $sheet->setCellValue("U{$row}", $c->proceedings->count());
+
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
+    }
+
+    protected function buildDvProceedingsSheet(Worksheet $sheet, $cases): void
+    {
+        $sheet->setTitle('Hearing Proceedings');
+
+        $headers = ['Case No', 'Hearing #', 'Date', 'Venue', 'Chairman', 'Petitioner', 'Respondent', 'Reconciliation', 'Adjourned'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, ['A' => 14, 'B' => 10, 'C' => 12, 'D' => 16, 'E' => 16, 'F' => 14, 'G' => 14, 'H' => 30, 'I' => 24]);
+
+        $row = 2;
+        foreach ($cases as $c) {
+            foreach ($c->proceedings as $i => $p) {
+                $sheet->setCellValue("A{$row}", $c->case_no);
+                $sheet->setCellValue("B{$row}", $i + 1);
+                $sheet->setCellValue("C{$row}", $p->date?->toDateString());
+                $sheet->setCellValue("D{$row}", $p->venue);
+                $sheet->setCellValue("E{$row}", $p->chairman_name);
+                $this->xlStatusCell($sheet, "F{$row}", $p->petitioner_present ? 'Present' : 'Absent', $p->petitioner_present ? 'success' : 'danger');
+                $this->xlStatusCell($sheet, "G{$row}", $p->respondent_present ? 'Present' : 'Absent', $p->respondent_present ? 'success' : 'danger');
+                $sheet->setCellValue("H{$row}", $p->reconciliation);
+                $sheet->setCellValue("I{$row}", $p->adjourned ? "Adjourned to {$p->next_hearing_date?->toDateString()}: {$p->adjourn_reason}" : '—');
+                $row++;
+            }
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
     }
 }

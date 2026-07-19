@@ -10,15 +10,21 @@ use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\Performa;
 use App\Models\PerformaResponse;
+use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class PerformaController extends Controller
 {
+    use StylesExcelSheets;
+
     public function indexForAdlg(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -112,6 +118,12 @@ class PerformaController extends Controller
         ]);
     }
 
+    /**
+     * A "Response Summary" sheet — which UCs in the tehsil have actually responded,
+     * colored green/red, so the ADLG can see who's outstanding at a glance — plus the
+     * full "Responses" detail (dynamic field columns for form mode, a clickable file
+     * link for upload mode). The old CSV had no completion tracking at all.
+     */
     public function exportResponses(Request $request, Performa $performa)
     {
         abort_unless($performa->tehsil_id === $request->user()->adlgProfile->tehsil_id, 403);
@@ -121,38 +133,119 @@ class PerformaController extends Controller
             ->latest('response_date')
             ->get();
 
+        $ucs = UnionCouncil::where('tehsil_id', $performa->tehsil_id)->where('active', true)
+            ->with('secretaryProfile.user')->orderBy('uc_no')->get();
+        $respondedUcIds = $responses->pluck('secretary.secretaryProfile.union_council_id')->filter()->unique();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('Performa: '.$performa->title);
+
+        $this->buildPerformaSummarySheet($spreadsheet->getActiveSheet(), $performa, $ucs, $respondedUcIds);
+
         if ($performa->mode === 'form') {
-            $fieldLabels = $performa->fields()->orderBy('sort_order')->pluck('label', 'id');
-            $rows = ['Date,Secretary,UC,'.$fieldLabels->map(fn ($l) => '"'.str_replace('"', '""', $l).'"')->implode(',')];
-            foreach ($responses as $r) {
-                $valuesByField = $r->values->keyBy('performa_field_id');
-                $cells = $fieldLabels->keys()->map(fn ($fieldId) => '"'.str_replace('"', '""', $valuesByField->get($fieldId)?->value ?? '').'"');
-                $rows[] = implode(',', [
-                    $r->response_date->toDateString(),
-                    '"'.str_replace('"', '""', $r->secretary->name).'"',
-                    '"'.str_replace('"', '""', $r->secretary->secretaryProfile?->unionCouncil?->name ?? '').'"',
-                    ...$cells,
-                ]);
-            }
+            $this->buildPerformaFormResponsesSheet($spreadsheet->createSheet(), $performa, $responses);
         } else {
-            $rows = ['Date,Secretary,UC,File URL'];
-            foreach ($responses as $r) {
-                $rows[] = implode(',', [
-                    $r->response_date->toDateString(),
-                    '"'.str_replace('"', '""', $r->secretary->name).'"',
-                    '"'.str_replace('"', '""', $r->secretary->secretaryProfile?->unionCouncil?->name ?? '').'"',
-                    $r->file_path ? Storage::disk('public')->url($r->file_path) : '',
-                ]);
+            $this->buildPerformaFileResponsesSheet($spreadsheet->createSheet(), $responses);
+        }
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Performa_'.Str::slug($performa->title).'_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildPerformaSummarySheet(Worksheet $sheet, Performa $performa, $ucs, $respondedUcIds): void
+    {
+        $sheet->setTitle('Response Summary');
+
+        $subtitle = $performa->deadline ? 'Deadline: '.$performa->deadline->toFormattedDateString() : 'No deadline set';
+        $this->xlTitleBanner($sheet, $performa->title, $subtitle, 4);
+
+        $headerRow = 4;
+        foreach (['UC No', 'UC Name', 'Secretary', 'Responded'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:D{$headerRow}");
+
+        $row = $headerRow + 1;
+        $respondedCount = 0;
+        foreach ($ucs as $uc) {
+            $responded = $respondedUcIds->contains($uc->id);
+            if ($responded) {
+                $respondedCount++;
             }
+            $sheet->setCellValue("A{$row}", $uc->uc_no);
+            $sheet->setCellValue("B{$row}", $uc->name);
+            $sheet->setCellValue("C{$row}", $uc->secretaryProfile?->user?->name ?? '—');
+            $this->xlStatusCell($sheet, "D{$row}", $responded ? 'Responded' : 'Outstanding', $responded ? 'success' : 'danger');
+            $row++;
         }
 
-        $csv = implode("\n", $rows);
-        $filename = 'Performa_'.Str::slug($performa->title).'_'.now()->toDateString().'.csv';
+        $totalUcs = $ucs->count();
+        $sheet->setCellValue("A{$row}", 'TOTAL');
+        $sheet->mergeCells("A{$row}:C{$row}");
+        $sheet->setCellValue("D{$row}", "{$respondedCount} / {$totalUcs} responded");
+        $sheet->getStyle("A{$row}:D{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:D{$row}")->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+        $this->xlAutoSize($sheet, ['A', 'B', 'C', 'D']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:D{$headerRow}", "A{$headerRow}:D{$row}", freezeBelowHeader: false);
+    }
+
+    protected function buildPerformaFormResponsesSheet(Worksheet $sheet, Performa $performa, $responses): void
+    {
+        $sheet->setTitle('Responses');
+
+        $fieldLabels = $performa->fields()->orderBy('sort_order')->pluck('label', 'id');
+        $headers = ['Date', 'Secretary', 'UC', ...$fieldLabels->values()->all()];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, ['A' => 12, 'B' => 20, 'C' => 20]);
+
+        $row = 2;
+        foreach ($responses as $r) {
+            $valuesByField = $r->values->keyBy('performa_field_id');
+            $sheet->setCellValue("A{$row}", $r->response_date->toDateString());
+            $sheet->setCellValue("B{$row}", $r->secretary->name);
+            $sheet->setCellValue("C{$row}", $r->secretary->secretaryProfile?->unionCouncil?->name);
+            foreach ($fieldLabels->keys()->values() as $i => $fieldId) {
+                $sheet->setCellValue([$i + 4, $row], $valuesByField->get($fieldId)?->value);
+            }
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
+    }
+
+    protected function buildPerformaFileResponsesSheet(Worksheet $sheet, $responses): void
+    {
+        $sheet->setTitle('Responses');
+
+        foreach (['Date', 'Secretary', 'UC', 'File'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $this->xlHeaderRow($sheet, 'A1:D1');
+        $this->xlColumnWidths($sheet, ['A' => 12, 'B' => 22, 'C' => 22, 'D' => 16]);
+
+        $row = 2;
+        foreach ($responses as $r) {
+            $sheet->setCellValue("A{$row}", $r->response_date->toDateString());
+            $sheet->setCellValue("B{$row}", $r->secretary->name);
+            $sheet->setCellValue("C{$row}", $r->secretary->secretaryProfile?->unionCouncil?->name);
+            if ($r->file_path) {
+                $this->xlHyperlink($sheet, "D{$row}", Storage::disk('public')->url($r->file_path), 'Open file');
+            }
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, 'A1:D1', "A1:D{$lastRow}");
+        }
     }
 
     public function downloadTemplateForAdlg(Request $request, Performa $performa)

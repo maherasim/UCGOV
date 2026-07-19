@@ -285,7 +285,7 @@ export default function Dklic() {
                 </div>
                 <div className="flex gap-2">
                     <Button variant="ghost" onClick={handleExport}>
-                        💾 Export
+                        📊 Export Excel
                     </Button>
                     <Button variant="accent" onClick={() => setUploadOpen(true)}>
                         <ArrowUpTrayIcon className="h-4 w-4" /> Upload Document

@@ -11,12 +11,25 @@ use App\Models\AuditLog;
 use App\Models\LbrCase;
 use App\Models\LbrDocument;
 use App\Models\LbrTimelineEvent;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class LbrCaseController extends Controller
 {
+    use StylesExcelSheets;
+
+    protected const STATUS_TONE = [
+        'FORWARDED' => 'info',
+        'APPROVED' => 'success',
+        'REJECTED' => 'danger',
+        'RETURNED' => 'warning',
+        'REGISTERED' => 'success',
+    ];
+
     public const DOC_LABELS = [
         'cnic' => 'Applicant CNIC (copy)',
         'slip' => 'Hospital Birth Slip',
@@ -319,39 +332,178 @@ class LbrCaseController extends Controller
         ]);
     }
 
+    /**
+     * Three sheets: a status/UC "Registry Summary" (color-coded to match the on-screen
+     * badges), a "Case Detail" sheet with every field the case actually has (not just
+     * the handful the old CSV carried), and a "Case Timeline" sheet — one row per stage
+     * transition across every case, the full audit trail that was previously invisible
+     * outside the app. Respects the same status filter as the on-screen list.
+     */
     public function export(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
-        $cases = LbrCase::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->with('unionCouncil')
-            ->latest('created_at')
-            ->get();
+        $query = LbrCase::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with(['unionCouncil.tehsil', 'secretary', 'adlg', 'documents', 'timeline.actor']);
 
-        $rows = ['LBR-ID,Status,Category,UC,Tehsil,Child Name,DOB,Applicant,Applicant CNIC,Applied,Certificate No'];
-        foreach ($cases as $c) {
-            $rows[] = implode(',', [
-                $c->lbr_id,
-                $c->status,
-                $c->category,
-                '"'.$c->unionCouncil->name.'"',
-                '"'.($c->unionCouncil->tehsil?->name ?? '').'"',
-                '"'.str_replace('"', '""', $c->child_name).'"',
-                $c->dob->toDateString(),
-                '"'.str_replace('"', '""', $c->applicant_name).'"',
-                $c->applicant_cnic,
-                $c->created_at->toDateString(),
-                $c->certificate_no ?? '',
-            ]);
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
         }
 
-        $csv = implode("\n", $rows);
-        $filename = 'LBR_Registry_'.now()->toDateString().'.csv';
+        $cases = $query->latest('created_at')->get();
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('Birth Registration (LBR) Report');
+
+        $this->buildLbrSummarySheet($spreadsheet->getActiveSheet(), $cases, $request);
+        $this->buildLbrDetailSheet($spreadsheet->createSheet(), $cases);
+        $this->buildLbrTimelineSheet($spreadsheet->createSheet(), $cases);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'LBR_Registry_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildLbrSummarySheet(Worksheet $sheet, $cases, Request $request): void
+    {
+        $sheet->setTitle('Registry Summary');
+
+        $subtitle = 'All Birth Registration cases in this tehsil'.($request->filled('status')
+            ? ' · Status filter: '.(LbrCaseResource::STATUS_LABELS[$request->string('status')->toString()] ?? $request->string('status'))
+            : '');
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — Birth Registration Summary', $subtitle, 3);
+
+        $headerRow = 4;
+        foreach (['Status', 'Cases', 'Share'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:C{$headerRow}");
+
+        $total = $cases->count();
+        $byStatus = $cases->countBy('status');
+        $row = $headerRow + 1;
+        foreach (LbrCaseResource::STATUS_LABELS as $status => $label) {
+            $count = $byStatus->get($status, 0);
+            $sheet->setCellValue("A{$row}", $label);
+            $this->xlStatusCell($sheet, "B{$row}", (string) $count, self::STATUS_TONE[$status] ?? 'neutral');
+            $sheet->setCellValue("C{$row}", $total ? round($count / $total * 100).'%' : '0%');
+            $row++;
+        }
+        $sheet->setCellValue("A{$row}", 'TOTAL');
+        $sheet->setCellValue("B{$row}", $total);
+        $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:C{$row}")->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $this->xlAutoSize($sheet, ['A', 'B', 'C']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:C{$headerRow}", "A{$headerRow}:C{$row}", freezeBelowHeader: false);
+
+        // Second block: per-UC breakdown, a few rows below the status table.
+        $ucHeaderRow = $row + 3;
+        foreach (['UC No', 'UC Name', 'Total Cases', 'Registered'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $ucHeaderRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$ucHeaderRow}:D{$ucHeaderRow}");
+
+        $byUc = $cases->groupBy('union_council_id');
+        $r = $ucHeaderRow + 1;
+        foreach ($byUc as $ucCases) {
+            $uc = $ucCases->first()->unionCouncil;
+            $sheet->setCellValue("A{$r}", $uc->uc_no);
+            $sheet->setCellValue("B{$r}", $uc->name);
+            $sheet->setCellValue("C{$r}", $ucCases->count());
+            $sheet->setCellValue("D{$r}", $ucCases->where('status', 'REGISTERED')->count());
+            $r++;
+        }
+        if ($r > $ucHeaderRow + 1) {
+            $this->xlBorderAndFilter($sheet, "A{$ucHeaderRow}:D{$ucHeaderRow}", "A{$ucHeaderRow}:D".($r - 1), freezeBelowHeader: false);
+        }
+    }
+
+    protected function buildLbrDetailSheet(Worksheet $sheet, $cases): void
+    {
+        $sheet->setTitle('Case Detail');
+
+        $headers = [
+            'LBR-ID', 'Status', 'Category', 'UC', 'Tehsil', 'Child Name', 'Gender', 'DOB', 'Age at Application',
+            'Birth Place', 'Birth Type', 'Hospital', 'Applicant', 'Applicant CNIC', 'Relation', 'Phone',
+            'Secretary', 'ADLG', 'Applied', 'Certificate No.', 'Certificate Date', 'Documents',
+        ];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, [
+            'A' => 14, 'B' => 14, 'C' => 10, 'D' => 20, 'E' => 16, 'F' => 20, 'G' => 9, 'H' => 12, 'I' => 10,
+            'J' => 16, 'K' => 12, 'L' => 18, 'M' => 20, 'N' => 16, 'O' => 12, 'P' => 14,
+            'Q' => 18, 'R' => 18, 'S' => 12, 'T' => 14, 'U' => 14, 'V' => 24,
         ]);
+
+        $row = 2;
+        foreach ($cases as $c) {
+            $sheet->setCellValue("A{$row}", $c->lbr_id);
+            $this->xlStatusCell($sheet, "B{$row}", LbrCaseResource::STATUS_LABELS[$c->status] ?? $c->status, self::STATUS_TONE[$c->status] ?? 'neutral');
+            $sheet->setCellValue("C{$row}", $c->category === '1-7' ? '1–7 Years' : 'Over 7 Years');
+            $sheet->setCellValue("D{$row}", $c->unionCouncil->name);
+            $sheet->setCellValue("E{$row}", $c->unionCouncil->tehsil?->name);
+            $sheet->setCellValue("F{$row}", $c->child_name);
+            $sheet->setCellValue("G{$row}", $c->child_gender);
+            $sheet->setCellValue("H{$row}", $c->dob?->toDateString());
+            $sheet->setCellValue("I{$row}", $c->age_at_application);
+            $sheet->setCellValue("J{$row}", $c->child_birth_place);
+            $sheet->setCellValue("K{$row}", $c->child_birth_type);
+            $sheet->setCellValue("L{$row}", $c->child_hospital);
+            $sheet->setCellValue("M{$row}", $c->applicant_name);
+            $sheet->setCellValue("N{$row}", $c->applicant_cnic);
+            $sheet->setCellValue("O{$row}", $c->applicant_relation);
+            $sheet->setCellValue("P{$row}", $c->applicant_phone);
+            $sheet->setCellValue("Q{$row}", $c->secretary?->name);
+            $sheet->setCellValue("R{$row}", $c->adlg?->name);
+            $sheet->setCellValue("S{$row}", $c->created_at->toDateString());
+            $sheet->setCellValue("T{$row}", $c->certificate_no);
+            $sheet->setCellValue("U{$row}", $c->certificate_date?->toDateString());
+
+            if ($c->documents->isNotEmpty()) {
+                $first = $c->documents->first();
+                $this->xlHyperlink($sheet, "V{$row}", \Illuminate\Support\Facades\Storage::disk('public')->url($first->file_path), $c->documents->count().' file(s) — view first');
+            } else {
+                $sheet->setCellValue("V{$row}", 'None uploaded');
+            }
+
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
+    }
+
+    protected function buildLbrTimelineSheet(Worksheet $sheet, $cases): void
+    {
+        $sheet->setTitle('Case Timeline');
+
+        foreach (['LBR-ID', 'Child Name', 'Stage', 'Event Date', 'Actor', 'Note'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $this->xlHeaderRow($sheet, 'A1:F1');
+        $this->xlColumnWidths($sheet, ['A' => 14, 'B' => 20, 'C' => 18, 'D' => 12, 'E' => 20, 'F' => 40]);
+
+        $row = 2;
+        foreach ($cases as $c) {
+            foreach ($c->timeline as $event) {
+                $sheet->setCellValue("A{$row}", $c->lbr_id);
+                $sheet->setCellValue("B{$row}", $c->child_name);
+                $sheet->setCellValue("C{$row}", $event->stage);
+                $sheet->setCellValue("D{$row}", $event->event_date?->toDateString());
+                $sheet->setCellValue("E{$row}", $event->actor?->name ?? 'System');
+                $sheet->setCellValue("F{$row}", $event->note);
+                $row++;
+            }
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, 'A1:F1', "A1:F{$lastRow}");
+        }
     }
 
     protected function authorizeOwnUc(Request $request, LbrCase $lbrCase): void

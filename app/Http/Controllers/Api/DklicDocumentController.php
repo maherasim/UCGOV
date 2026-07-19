@@ -9,10 +9,16 @@ use App\Models\AuditLog;
 use App\Models\DklicAcknowledgement;
 use App\Models\DklicAiQuery;
 use App\Models\DklicDocument;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class DklicDocumentController extends Controller
 {
+    use StylesExcelSheets;
+
     public function index(Request $request)
     {
         $query = DklicDocument::query()->with('uploader');
@@ -103,37 +109,98 @@ class DklicDocumentController extends Controller
         return new DklicDocumentResource($document->load('uploader'));
     }
 
+    /**
+     * A "Category Overview" sheet (document counts + urgent count per category) plus
+     * the full "Document Registry" — now with the uploader, tags, and acknowledgement
+     * count the old CSV didn't carry, priority-colored rows, and a clickable file link.
+     */
     public function export()
     {
-        $documents = DklicDocument::query()->latest('created_at')->get();
+        $documents = DklicDocument::query()
+            ->with('uploader')
+            ->withCount('acknowledgements')
+            ->latest('created_at')
+            ->get();
 
-        $rows = ["Doc ID,Title,Category,Subject,Ref No.,Issue Date,Effective Date,Priority,Audience,Version,Views,Downloads,Ack Required,Archived,Created"];
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('UC Governance Platform')->setTitle('DKLIC Repository Report');
+
+        $this->buildDklicOverviewSheet($spreadsheet->getActiveSheet(), $documents);
+        $this->buildDklicRegistrySheet($spreadsheet->createSheet(), $documents);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'DKLIC_Repository_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildDklicOverviewSheet(Worksheet $sheet, $documents): void
+    {
+        $sheet->setTitle('Category Overview');
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — DKLIC Repository Overview', 'Total documents: '.$documents->count(), 4);
+
+        $headerRow = 4;
+        foreach (['Category', 'Documents', 'Urgent', 'Total Views'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:D{$headerRow}");
+
+        $row = $headerRow + 1;
+        foreach ($documents->groupBy('category') as $category => $docs) {
+            $urgent = $docs->where('priority', 'urgent')->count();
+            $sheet->setCellValue("A{$row}", $category);
+            $sheet->setCellValue("B{$row}", $docs->count());
+            $this->xlStatusCell($sheet, "C{$row}", (string) $urgent, $urgent > 0 ? 'danger' : 'success');
+            $sheet->setCellValue("D{$row}", $docs->sum('view_count'));
+            $row++;
+        }
+        $this->xlAutoSize($sheet, ['A', 'B', 'C', 'D']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:D{$headerRow}", "A{$headerRow}:D".($row - 1), freezeBelowHeader: false);
+    }
+
+    protected function buildDklicRegistrySheet(Worksheet $sheet, $documents): void
+    {
+        $sheet->setTitle('Document Registry');
+
+        $headers = [
+            'Doc ID', 'Title', 'Category', 'Subject', 'Ref No.', 'Priority', 'Audience', 'Version',
+            'Uploaded By', 'Tags', 'Issue Date', 'Effective Date', 'Views', 'Downloads',
+            'Acknowledgements', 'Status', 'File',
+        ];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, [
+            'A' => 8, 'B' => 28, 'C' => 16, 'D' => 28, 'E' => 14, 'F' => 10, 'G' => 14, 'H' => 8,
+            'I' => 18, 'J' => 24, 'K' => 12, 'L' => 12, 'M' => 8, 'N' => 10, 'O' => 14, 'P' => 12, 'Q' => 14,
+        ]);
+
+        $row = 2;
         foreach ($documents as $d) {
-            $rows[] = implode(',', [
-                $d->id,
-                '"'.str_replace('"', '""', $d->title).'"',
-                '"'.$d->category.'"',
-                '"'.str_replace('"', '""', $d->subject).'"',
-                '"'.($d->reference_no ?? '').'"',
-                $d->issue_date?->toDateString(),
-                $d->effective_date?->toDateString(),
-                $d->priority,
-                '"'.$d->audience.'"',
-                $d->version,
-                $d->view_count,
-                $d->download_count,
-                $d->ack_required ? 'Yes' : 'No',
-                $d->archived_at ? 'Yes' : 'No',
-                $d->created_at->toDateString(),
-            ]);
+            $sheet->setCellValue("A{$row}", $d->id);
+            $sheet->setCellValue("B{$row}", $d->title);
+            $sheet->setCellValue("C{$row}", $d->category);
+            $sheet->setCellValue("D{$row}", $d->subject);
+            $sheet->setCellValue("E{$row}", $d->reference_no);
+            $this->xlStatusCell($sheet, "F{$row}", ucfirst($d->priority), $d->priority === 'urgent' ? 'danger' : 'neutral');
+            $sheet->setCellValue("G{$row}", $d->audience);
+            $sheet->setCellValue("H{$row}", $d->version);
+            $sheet->setCellValue("I{$row}", $d->uploader?->name);
+            $sheet->setCellValue("J{$row}", implode(', ', $d->tags ?? []));
+            $sheet->setCellValue("K{$row}", $d->issue_date?->toDateString());
+            $sheet->setCellValue("L{$row}", $d->effective_date?->toDateString());
+            $sheet->setCellValue("M{$row}", $d->view_count);
+            $sheet->setCellValue("N{$row}", $d->download_count);
+            $sheet->setCellValue("O{$row}", $d->acknowledgements_count.($d->ack_required ? ' (required)' : ''));
+            $this->xlStatusCell($sheet, "P{$row}", $d->archived_at ? 'Archived' : 'Published', $d->archived_at ? 'neutral' : 'success');
+            $this->xlHyperlink($sheet, "Q{$row}", Storage::disk('public')->url($d->file_path), 'Open file');
+
+            $row++;
         }
 
-        $csv = implode("\n", $rows);
-        $filename = 'DKLIC_Repository_'.now()->toDateString().'.csv';
-
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
     }
 }

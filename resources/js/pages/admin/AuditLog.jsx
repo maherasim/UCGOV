@@ -26,7 +26,7 @@ export default function AuditLog() {
                         )
                     }
                 >
-                    📥 Export CSV
+                    📊 Export Excel
                 </Button>
             </div>
 
