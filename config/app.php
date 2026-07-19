@@ -65,7 +65,12 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // Every secretary, ADLG, and admin using this platform is in Pakistan — attendance
+    // check-in times, case deadlines, and every timestamp should read in local Pakistan
+    // time everywhere, not the hosting server's own timezone (see config/database.php
+    // for the matching MySQL session timezone, required so TIMESTAMP columns don't
+    // silently convert these values against the wrong offset).
+    'timezone' => 'Asia/Karachi',
 
     /*
     |--------------------------------------------------------------------------

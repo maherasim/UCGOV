@@ -59,6 +59,13 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Fixed +05:00 offset, not a named zone — Pakistan has no DST, so this is
+            // always correct and doesn't depend on the server having Asia/Karachi's
+            // tzinfo tables loaded (mysql_tzinfo_to_sql, not always available on shared
+            // hosting). Without this, TIMESTAMP columns get converted against MySQL's
+            // own session timezone (often "SYSTEM" = the host server's, e.g. Germany),
+            // not the Pakistan time app.timezone above computes.
+            'timezone' => '+05:00',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -79,6 +86,7 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            'timezone' => '+05:00',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
