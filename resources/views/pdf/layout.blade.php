@@ -112,10 +112,10 @@
 <body>
 
 <div class="doc-header">
-    GOVERNMENT OF PUNJAB &nbsp;|&nbsp; LOCAL GOVT. &amp; COMMUNITY DEVELOPMENT DEPT. &nbsp;|&nbsp; {{ $docHeaderTitle ?? '' }} &nbsp;|&nbsp; CONFIDENTIAL — OFFICIAL USE ONLY
+    UNION COUNCIL MANAGEMENT SYSTEM &nbsp;|&nbsp; {{ $docHeaderTitle ?? '' }} &nbsp;|&nbsp; CONFIDENTIAL — OFFICIAL USE ONLY
 </div>
 <div class="doc-footer">
-    UC Governance Platform &nbsp;|&nbsp; Government of Punjab LGCD &nbsp;|&nbsp; Generated {{ now()->format('d M Y H:i') }}
+    Bakhtawar Shahzad AI Labs Pvt Ltd. &nbsp;|&nbsp; Union Council Management System &nbsp;|&nbsp; Generated {{ now()->format('d M Y H:i') }}
 </div>
 
 <script type="text/php">

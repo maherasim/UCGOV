@@ -2,8 +2,8 @@
 
 @section('content')
     <div class="letterhead">
-        <div class="dept">GOVERNMENT OF PUNJAB</div>
-        <div class="sub">Local Government &amp; Community Development Department</div>
+        <div class="dept">Bakhtawar Shahzad AI Labs Pvt Ltd.</div>
+        <div class="sub">Union Council Management System</div>
         <div class="sub">Union Council {{ $lbrCase->unionCouncil->name }}
             @if($lbrCase->unionCouncil->tehsil) | Tehsil {{ $lbrCase->unionCouncil->tehsil->name }} @endif
         </div>

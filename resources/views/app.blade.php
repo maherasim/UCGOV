@@ -10,7 +10,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="app-base-path" content="{{ $basePath }}">
-    <title>UC Governance Platform | Government of Punjab</title>
+    <title>UC Governance Platform</title>
     <link rel="icon" type="image/png" href="{{ $basePath }}/localgovrment.png">
     @if (app()->environment('local'))
         {{-- Blade isn't processed through Vite's HTML transform, so @vitejs/plugin-react's

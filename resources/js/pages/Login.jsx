@@ -41,10 +41,9 @@ export default function Login() {
             <div className="w-full max-w-sm rounded-2xl bg-surface p-8 shadow-xl">
                 <div className="mb-6 text-center">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-surface p-1.5 shadow-sm">
-                        <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Government of Punjab" className="h-full w-full object-contain" />
+                        <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <h1 className="mt-3 text-lg font-bold text-ink">UC Governance Platform</h1>
-                    <p className="text-xs text-ink-muted">Government of Punjab</p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
