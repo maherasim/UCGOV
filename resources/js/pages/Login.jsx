@@ -37,7 +37,7 @@ export default function Login() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-primary-700 px-4">
+        <div className="relative flex min-h-screen items-center justify-center bg-primary-700 px-4">
             <div className="w-full max-w-sm rounded-2xl bg-surface p-8 shadow-xl">
                 <div className="mb-6 text-center">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-surface p-1.5 shadow-sm">
@@ -70,6 +70,9 @@ export default function Login() {
                     </Button>
                 </form>
             </div>
+            <p className="absolute inset-x-0 bottom-4 text-center text-[11px] text-white/50">
+                © {new Date().getFullYear()} Bakhtawar Shahzad AI Labs Pvt Ltd. All rights reserved.
+            </p>
         </div>
     );
 }

@@ -127,7 +127,7 @@ export default function AdlgLayout() {
                         <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Government of Punjab" className="h-full w-full object-contain" />
                     </div>
                     <div>
-                        <div className="text-sm font-bold leading-tight">ADLG's UC Assistant</div>
+                        <div className="text-[11px] font-bold leading-snug tracking-tight">Personal Assistant to ADLG for UCs' Management</div>
                         <div className="text-[11px] text-white/60">Govt. of Punjab</div>
                     </div>
                 </div>
@@ -161,7 +161,7 @@ export default function AdlgLayout() {
                 </nav>
 
                 <div className="border-t border-white/10 px-5 py-4 text-[10px] text-white/40">
-                    ADLG's UC Assistant v1.0
+                    Personal Assistant to ADLG for UCs' Management v1.0
                 </div>
             </aside>
 
