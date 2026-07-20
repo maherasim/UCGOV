@@ -143,7 +143,7 @@ export default function SecLayout() {
                             <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Government of Punjab" className="h-full w-full object-contain" />
                         </div>
                         <div>
-                            <div className="text-sm font-bold leading-tight">UC Governance</div>
+                            <div className="text-xs font-bold leading-snug">Union Council Management System</div>
                             <div className="text-[11px] text-white/60">Govt. of Punjab</div>
                         </div>
                     </div>
@@ -178,7 +178,7 @@ export default function SecLayout() {
                     </nav>
 
                     <div className="border-t border-white/10 px-5 py-4 text-[10px] text-white/40">
-                        UC Governance Platform v1.0 · Secretary
+                        Union Council Management System v1.0 · Secretary
                     </div>
                 </aside>
 

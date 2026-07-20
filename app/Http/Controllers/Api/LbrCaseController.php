@@ -16,6 +16,7 @@ use App\Models\LbrCase;
 use App\Models\LbrDocument;
 use App\Models\LbrTimelineEvent;
 use App\Support\Concerns\StylesExcelSheets;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -491,94 +492,21 @@ class LbrCaseController extends Controller
         }
 
         $lbrCase->load($this->relations());
-        $lines = [];
-        $lines[] = 'GOVERNMENT OF PUNJAB';
-        $lines[] = 'LOCAL GOVERNMENT & COMMUNITY DEVELOPMENT DEPARTMENT';
-        $lines[] = "UNION COUNCIL {$lbrCase->unionCouncil->name}, TEHSIL {$lbrCase->unionCouncil->tehsil?->name}";
-        $lines[] = '';
-        $lines[] = str_repeat('=', 68);
-        $lines[] = 'DELAYED BIRTH REGISTRATION — OFFICIAL NOTESHEET';
-        $lines[] = 'Punjab Local Government (Birth Registration) Rules';
-        $lines[] = str_repeat('=', 68);
-        $lines[] = '';
-        $lines[] = "LBR-ID     : {$lbrCase->lbr_id}";
-        $lines[] = 'Category   : '.($lbrCase->category === '1-7' ? '1–7 Years' : 'Over 7 Years');
-        $lines[] = 'Status     : '.(LbrCaseResource::STATUS_LABELS[$lbrCase->status] ?? $lbrCase->status);
-        $lines[] = 'Generated  : '.now()->toDateTimeString();
-        $lines[] = '';
-        $lines[] = 'SECTION 1 — CHILD DETAILS';
-        $lines[] = str_repeat('-', 68);
-        $lines[] = "Name         : {$lbrCase->child_name}";
-        $lines[] = "Gender       : {$lbrCase->child_gender}";
-        $lines[] = 'Date of Birth: '.$lbrCase->dob->toDateString();
-        $lines[] = "Age at App.  : {$lbrCase->age_at_application} years";
-        $lines[] = 'Birth Place  : '.($lbrCase->child_birth_place ?: '—');
-        $lines[] = "Birth Type   : {$lbrCase->child_birth_type}";
-        if ($lbrCase->child_hospital) $lines[] = "Hospital     : {$lbrCase->child_hospital}";
-        $lines[] = '';
-        $lines[] = 'SECTION 2 — APPLICANT DETAILS';
-        $lines[] = str_repeat('-', 68);
-        $lines[] = "Name         : {$lbrCase->applicant_name}";
-        $lines[] = "Relation     : {$lbrCase->applicant_relation}";
-        $lines[] = "CNIC         : {$lbrCase->applicant_cnic}";
-        if ($lbrCase->applicant_father_name) $lines[] = "Father's Name: {$lbrCase->applicant_father_name}";
-        if ($lbrCase->applicant_mother_name) $lines[] = "Mother's Name: {$lbrCase->applicant_mother_name}";
-        if ($lbrCase->applicant_address) $lines[] = "Address      : {$lbrCase->applicant_address}";
-        if ($lbrCase->applicant_phone) $lines[] = "Phone        : {$lbrCase->applicant_phone}";
-        $lines[] = '';
-        $lines[] = 'SECTION 3 — REASON FOR DELAY';
-        $lines[] = str_repeat('-', 68);
-        $lines[] = $lbrCase->delay_reason;
-        if ($lbrCase->secretary_remarks) {
-            $lines[] = '';
-            $lines[] = "Secretary Remarks: {$lbrCase->secretary_remarks}";
-        }
-        $lines[] = '';
-        $lines[] = 'SECTION 4 — DOCUMENT CHECKLIST';
-        $lines[] = str_repeat('-', 68);
-        foreach (self::DOC_LABELS as $key => $label) {
-            $doc = $lbrCase->documents->firstWhere('doc_key', $key);
-            $mandatory = in_array($key, ['cnic', 'photo1', 'photo2', 'forma'], true);
-            $mark = $doc ? '[x] ' : '[ ] ';
-            $lines[] = $mark.$label.($mandatory ? ' (MANDATORY)' : '').($doc ? ' — Uploaded '.$doc->uploaded_at->toDateString() : '');
-        }
-        $lines[] = '';
-        $lines[] = 'SECTION 5 — SECRETARY UC VERIFICATION';
-        $lines[] = str_repeat('-', 68);
-        $lines[] = "Secretary UC : {$lbrCase->secretary?->name}";
-        $lines[] = "UC           : {$lbrCase->unionCouncil->name}, Tehsil {$lbrCase->unionCouncil->tehsil?->name}";
-        $lines[] = 'Forwarded On : '.$lbrCase->created_at->toDateString();
-        $lines[] = 'Signature    : _________________________   Date: ____________';
-        $lines[] = '';
-        $lines[] = 'SECTION 6 — ADLG REVIEW & DECISION';
-        $lines[] = str_repeat('-', 68);
-        if ($lbrCase->adlg_observations) {
-            $lines[] = 'ADLG Observations:';
-            $lines[] = $lbrCase->adlg_observations;
-            $lines[] = '';
-            $lines[] = 'Decision     : '.(LbrCaseResource::STATUS_LABELS[$lbrCase->status] ?? $lbrCase->status);
-            if ($lbrCase->adlg_order_no) $lines[] = "Order No.    : {$lbrCase->adlg_order_no}";
-            $lines[] = 'ADLG Signature: _________________________   Date: ____________';
-            $lines[] = 'Stamp        : [OFFICIAL STAMP]';
-        } else {
-            $lines[] = 'Pending ADLG review.';
-        }
-        if ($lbrCase->certificate_no) {
-            $lines[] = '';
-            $lines[] = 'SECTION 7 — BIRTH CERTIFICATE';
-            $lines[] = str_repeat('-', 68);
-            $lines[] = "Certificate No: {$lbrCase->certificate_no}";
-            $lines[] = 'Certificate Date: '.$lbrCase->certificate_date?->toDateString();
-            $lines[] = '[FILE LOCKED — No further modifications permitted]';
-        }
+        $statusLabel = LbrCaseResource::STATUS_LABELS[$lbrCase->status] ?? $lbrCase->status;
+        $docLabels = self::DOC_LABELS;
 
-        $content = implode("\n", $lines);
-        $filename = "Notesheet_{$lbrCase->lbr_id}.txt";
+        $pdf = Pdf::loadView('pdf.lbr-notesheet', compact('lbrCase', 'statusLabel', 'docLabels'))->setPaper('a4');
+        $filename = "Notesheet_{$lbrCase->lbr_id}.pdf";
 
-        return response($content, 200, [
-            'Content-Type' => 'text/plain',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'LBR_NOTESHEET_DOWNLOADED',
+            'entity_type' => 'LbrCase',
+            'entity_id' => $lbrCase->id,
+            'note' => "Notesheet downloaded: {$lbrCase->lbr_id}",
         ]);
+
+        return $pdf->download($filename);
     }
 
     /**
