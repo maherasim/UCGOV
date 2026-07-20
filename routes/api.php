@@ -132,6 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/live-locations', [AttendanceController::class, 'liveLocations']);
 
         Route::get('/reports', [DailyReportController::class, 'indexForAdlg']);
+        Route::get('/reports/export', [DailyReportController::class, 'export']);
         Route::patch('/reports/{report}/mark-reviewed', [DailyReportController::class, 'markReviewed']);
 
         Route::get('/performas', [PerformaController::class, 'indexForAdlg']);

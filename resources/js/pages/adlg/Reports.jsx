@@ -277,50 +277,57 @@ function DailyReportsTab() {
     if (isLoading) return <FullScreenSpinner />;
 
     return (
-        <Card>
-            <DataTable
-                data={data}
-                columns={[
-                    { title: 'Date', data: 'report_date' },
-                    { title: 'Secretary', data: 'secretary' },
-                    { title: 'UC', data: 'union_council' },
-                    { title: 'Nikah', data: 'nikah_count' },
-                    { title: 'Birth', data: 'birth_count' },
-                    { title: 'Death', data: 'death_count' },
-                    { title: 'Complaints', data: 'complaint_count' },
-                    { title: 'Status', data: 'reviewed' },
-                    { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
-                ]}
-                slots={{
-                    7: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
-                    8: (data, row) => (
-                        <div className="flex justify-end gap-1">
-                            {row.attachment_url && (
-                                <a
-                                    href={row.attachment_url}
-                                    target="_blank"
-                                    rel="noopener"
-                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
-                                    aria-label="View Attachment"
-                                    title="View Attachment"
-                                >
-                                    <PaperClipIcon className="h-4 w-4" />
-                                </a>
-                            )}
-                            {!row.reviewed && (
-                                <button
-                                    onClick={() => reviewMutation.mutate(row.id)}
-                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
-                                    aria-label="Mark Reviewed"
-                                >
-                                    <CheckIcon className="h-4 w-4" />
-                                </button>
-                            )}
-                        </div>
-                    ),
-                }}
-            />
-        </Card>
+        <div>
+            <div className="mb-3 flex justify-end">
+                <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/reports/export`, '_blank')}>
+                    📊 Export Excel
+                </Button>
+            </div>
+            <Card>
+                <DataTable
+                    data={data}
+                    columns={[
+                        { title: 'Date', data: 'report_date' },
+                        { title: 'Secretary', data: 'secretary' },
+                        { title: 'UC', data: 'union_council' },
+                        { title: 'Nikah', data: 'nikah_count' },
+                        { title: 'Birth', data: 'birth_count' },
+                        { title: 'Death', data: 'death_count' },
+                        { title: 'Complaints', data: 'complaint_count' },
+                        { title: 'Status', data: 'reviewed' },
+                        { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
+                    ]}
+                    slots={{
+                        7: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
+                        8: (data, row) => (
+                            <div className="flex justify-end gap-1">
+                                {row.attachment_url && (
+                                    <a
+                                        href={row.attachment_url}
+                                        target="_blank"
+                                        rel="noopener"
+                                        className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                        aria-label="View Attachment"
+                                        title="View Attachment"
+                                    >
+                                        <PaperClipIcon className="h-4 w-4" />
+                                    </a>
+                                )}
+                                {!row.reviewed && (
+                                    <button
+                                        onClick={() => reviewMutation.mutate(row.id)}
+                                        className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                        aria-label="Mark Reviewed"
+                                    >
+                                        <CheckIcon className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                        ),
+                    }}
+                />
+            </Card>
+        </div>
     );
 }
 
