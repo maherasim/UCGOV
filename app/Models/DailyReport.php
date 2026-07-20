@@ -16,6 +16,7 @@ class DailyReport extends Model
         'birth_count',
         'death_count',
         'complaint_count',
+        'custom_fields',
         'attachment_path',
         'reviewed',
         'reviewed_at',
@@ -25,6 +26,7 @@ class DailyReport extends Model
     {
         return [
             'report_date' => 'date',
+            'custom_fields' => 'array',
             'reviewed' => 'boolean',
             'reviewed_at' => 'datetime',
         ];

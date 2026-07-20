@@ -199,6 +199,7 @@ function PerformasTab() {
 function DailyReportTab() {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
+    const [customFields, setCustomFields] = useState([]);
     const [attachment, setAttachment] = useState(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -215,12 +216,19 @@ function DailyReportTab() {
         mutationFn: () => {
             const formData = new FormData();
             Object.entries(form).forEach(([key, value]) => formData.append(key, value));
+            customFields
+                .filter((f) => f.label.trim())
+                .forEach((f, i) => {
+                    formData.append(`custom_fields[${i}][label]`, f.label);
+                    formData.append(`custom_fields[${i}][value]`, f.value);
+                });
             if (attachment) formData.append('attachment', attachment);
             return client.post('/api/sec/reports', formData);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sec-reports'] });
             setForm(emptyForm);
+            setCustomFields([]);
             setAttachment(null);
             setSuccess(true);
         },
@@ -266,6 +274,47 @@ function DailyReportTab() {
                                     required
                                 />
                             </Field>
+
+                            <div className="mb-4">
+                                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                                    Additional Fields (optional)
+                                </span>
+                                <div className="space-y-2">
+                                    {customFields.map((f, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <TextInput
+                                                placeholder="Field name"
+                                                value={f.label}
+                                                onChange={(e) =>
+                                                    setCustomFields(customFields.map((x, xi) => (xi === i ? { ...x, label: e.target.value } : x)))
+                                                }
+                                            />
+                                            <TextInput
+                                                placeholder="Value"
+                                                value={f.value}
+                                                onChange={(e) =>
+                                                    setCustomFields(customFields.map((x, xi) => (xi === i ? { ...x, value: e.target.value } : x)))
+                                                }
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomFields(customFields.filter((_, xi) => xi !== i))}
+                                                className="flex-shrink-0 rounded-lg px-2 text-ink-muted hover:bg-surface-subtle hover:text-danger"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setCustomFields([...customFields, { label: '', value: '' }])}
+                                    className="mt-2 text-xs font-semibold text-primary-600 hover:underline"
+                                >
+                                    + Add Field
+                                </button>
+                            </div>
+
                             <Field label="Attachment (optional)">
                                 <FileInput value={attachment} onChange={setAttachment} accept=".pdf,.jpg,.jpeg,.png" hint="PDF · Image" />
                             </Field>
@@ -292,6 +341,16 @@ function DailyReportTab() {
                                         <Badge tone={r.reviewed ? 'success' : 'warning'}>{r.reviewed ? 'Reviewed' : 'Pending'}</Badge>
                                     </div>
                                     <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{r.remarks}</p>
+                                    {r.custom_fields?.length > 0 && (
+                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                            {r.custom_fields.map((f, i) => (
+                                                <div key={i} className="rounded-lg bg-surface-subtle px-2 py-1">
+                                                    <div className="text-[9px] uppercase text-ink-faint">{f.label}</div>
+                                                    <div className="text-[11px] font-bold text-ink">{f.value || '—'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     {r.attachment_url && (
                                         <a
                                             href={r.attachment_url}

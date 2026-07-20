@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, EyeIcon, PaperClipIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { APP_BASE_PATH } from '../../utils/basePath';
@@ -261,8 +261,73 @@ function PerformasTab() {
     );
 }
 
+function ReportDetailModal({ report, onClose, onMarkReviewed }) {
+    return (
+        <Modal open={!!report} onClose={onClose} title={report?.report_date} subtitle={report ? `${report.secretary} · ${report.union_council}` : ''}>
+            {report && (
+                <div>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        <Badge tone={report.reviewed ? 'success' : 'warning'}>{report.reviewed ? 'Reviewed' : 'Pending'}</Badge>
+                    </div>
+
+                    <div className="mb-3 grid grid-cols-4 gap-2 text-center">
+                        {[
+                            ['Nikah', report.nikah_count],
+                            ['Birth', report.birth_count],
+                            ['Death', report.death_count],
+                            ['Complaints', report.complaint_count],
+                        ].map(([label, value]) => (
+                            <div key={label} className="rounded-lg border border-border p-2">
+                                <div className="text-[9px] font-bold uppercase text-ink-muted">{label}</div>
+                                <div className="text-lg font-bold text-ink">{value}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mb-3 rounded-xl bg-surface-subtle p-3">
+                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Remarks</div>
+                        <p className="text-xs text-ink">{report.remarks || '—'}</p>
+                    </div>
+
+                    {report.custom_fields?.length > 0 && (
+                        <div className="mb-3 rounded-xl border border-border p-3">
+                            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Additional Fields</div>
+                            <div className="flex flex-wrap gap-2">
+                                {report.custom_fields.map((f, i) => (
+                                    <div key={i} className="rounded-lg bg-surface-subtle px-2.5 py-1.5">
+                                        <div className="text-[9px] uppercase text-ink-faint">{f.label}</div>
+                                        <div className="text-xs font-bold text-ink">{f.value || '—'}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {report.attachment_url && (
+                        <a
+                            href={report.attachment_url}
+                            target="_blank"
+                            rel="noopener"
+                            className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:underline"
+                        >
+                            <PaperClipIcon className="h-4 w-4" /> View Attachment
+                        </a>
+                    )}
+
+                    {!report.reviewed && (
+                        <Button className="w-full" onClick={() => onMarkReviewed(report.id)}>
+                            <CheckIcon className="h-4 w-4" /> Mark Reviewed
+                        </Button>
+                    )}
+                </div>
+            )}
+        </Modal>
+    );
+}
+
 function DailyReportsTab() {
     const queryClient = useQueryClient();
+    const [viewing, setViewing] = useState(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['adlg-reports'],
@@ -271,7 +336,10 @@ function DailyReportsTab() {
 
     const reviewMutation = useMutation({
         mutationFn: (id) => client.patch(`/api/adlg/reports/${id}/mark-reviewed`),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['adlg-reports'] }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adlg-reports'] });
+            setViewing(null);
+        },
     });
 
     if (isLoading) return <FullScreenSpinner />;
@@ -301,6 +369,14 @@ function DailyReportsTab() {
                         7: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
                         8: (data, row) => (
                             <div className="flex justify-end gap-1">
+                                <button
+                                    onClick={() => setViewing(row)}
+                                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                                    aria-label="View Details"
+                                    title="View Details"
+                                >
+                                    <EyeIcon className="h-4 w-4" />
+                                </button>
                                 {row.attachment_url && (
                                     <a
                                         href={row.attachment_url}
@@ -327,6 +403,8 @@ function DailyReportsTab() {
                     }}
                 />
             </Card>
+
+            <ReportDetailModal report={viewing} onClose={() => setViewing(null)} onMarkReviewed={(id) => reviewMutation.mutate(id)} />
         </div>
     );
 }

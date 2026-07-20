@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreDailyReportRequest;
 use App\Http\Resources\DailyReportResource;
 use App\Models\AuditLog;
+use App\Models\CaseNotification;
 use App\Models\DailyReport;
 use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
@@ -26,6 +27,12 @@ class DailyReportController extends Controller
             ? $request->file('attachment')->store('daily-reports', 'public')
             : null;
 
+        $customFields = collect($request->input('custom_fields', []))
+            ->filter(fn ($f) => filled($f['label'] ?? null))
+            ->map(fn ($f) => ['label' => $f['label'], 'value' => $f['value'] ?? ''])
+            ->values()
+            ->all();
+
         $report = DailyReport::create([
             'secretary_id' => $user->id,
             'union_council_id' => $uc->id,
@@ -35,6 +42,7 @@ class DailyReportController extends Controller
             'birth_count' => $request->integer('birth_count'),
             'death_count' => $request->integer('death_count'),
             'complaint_count' => $request->integer('complaint_count'),
+            'custom_fields' => $customFields ?: null,
             'attachment_path' => $attachmentPath,
             'reviewed' => false,
         ]);
@@ -46,6 +54,16 @@ class DailyReportController extends Controller
             'entity_id' => $report->id,
             'note' => "Daily report submitted by {$user->name}",
         ]);
+
+        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
+        if ($adlgId) {
+            CaseNotification::create([
+                'to_user_id' => $adlgId,
+                'from_user_id' => $user->id,
+                'type' => 'REPORT_SUBMITTED',
+                'message' => "{$user->name} submitted today's daily report for {$uc->name}.",
+            ]);
+        }
 
         return new DailyReportResource($report->load(['secretary', 'unionCouncil']));
     }
@@ -159,7 +177,7 @@ class DailyReportController extends Controller
     {
         $sheet->setTitle('Report Detail');
 
-        $headers = ['Date', 'Secretary', 'Union Council', 'Nikah', 'Birth', 'Death', 'Complaints', 'Status', 'Reviewed At', 'Remarks', 'Attachment'];
+        $headers = ['Date', 'Secretary', 'Union Council', 'Nikah', 'Birth', 'Death', 'Complaints', 'Status', 'Reviewed At', 'Remarks', 'Custom Fields', 'Attachment'];
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
@@ -167,7 +185,7 @@ class DailyReportController extends Controller
         $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
         $this->xlColumnWidths($sheet, [
             'A' => 12, 'B' => 20, 'C' => 18, 'D' => 9, 'E' => 9, 'F' => 9, 'G' => 12,
-            'H' => 12, 'I' => 16, 'J' => 30, 'K' => 18,
+            'H' => 12, 'I' => 16, 'J' => 30, 'K' => 30, 'L' => 18,
         ]);
 
         $row = 2;
@@ -182,11 +200,14 @@ class DailyReportController extends Controller
             $this->xlStatusCell($sheet, "H{$row}", $r->reviewed ? 'Reviewed' : 'Pending', $r->reviewed ? 'success' : 'warning');
             $sheet->setCellValue("I{$row}", $r->reviewed_at?->format('Y-m-d H:i'));
             $sheet->setCellValue("J{$row}", $r->remarks);
+            $sheet->setCellValue("K{$row}", collect($r->custom_fields ?? [])
+                ->map(fn ($f) => "{$f['label']}: {$f['value']}")
+                ->implode('; ') ?: '—');
 
             if ($r->attachment_path) {
-                $this->xlHyperlink($sheet, "K{$row}", Storage::disk('public')->url($r->attachment_path), 'View attachment');
+                $this->xlHyperlink($sheet, "L{$row}", Storage::disk('public')->url($r->attachment_path), 'View attachment');
             } else {
-                $sheet->setCellValue("K{$row}", '—');
+                $sheet->setCellValue("L{$row}", '—');
             }
 
             $row++;

@@ -20,6 +20,7 @@ class DailyReportResource extends JsonResource
             'birth_count' => $this->birth_count,
             'death_count' => $this->death_count,
             'complaint_count' => $this->complaint_count,
+            'custom_fields' => $this->custom_fields ?? [],
             'attachment_url' => $this->attachment_path ? Storage::disk('public')->url($this->attachment_path) : null,
             'reviewed' => $this->reviewed,
             'reviewed_at' => $this->reviewed_at,
