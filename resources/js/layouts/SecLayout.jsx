@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/Avatar';
+import AttendanceReminderPopup from '../components/AttendanceReminderPopup';
 import ConnectivityMonitor from '../components/ConnectivityMonitor';
 import LiveLocationTracker from '../components/LiveLocationTracker';
 import NotificationBell from '../components/NotificationBell';
@@ -61,7 +62,7 @@ function MovementQuickAction() {
                 className="flex w-full items-center gap-2.5 rounded-lg border border-accent-400/60 bg-transparent px-3 py-2.5 text-sm font-semibold text-accent-100 transition hover:border-accent-500 hover:bg-accent-500 hover:text-white"
             >
                 <MapPinIcon className="h-5 w-5 flex-shrink-0" />
-                Log Movement
+                Movement Register
             </button>
             <p className="mt-2 px-0.5 text-[10.5px] leading-snug text-white/50">
                 Leaving your UC office during working hours? Log it here so it's on record.
@@ -135,6 +136,7 @@ export default function SecLayout() {
             <div className="flex min-h-screen bg-surface-subtle">
                 <LiveLocationTracker />
                 <ConnectivityMonitor />
+                <AttendanceReminderPopup />
                 <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
                     <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">

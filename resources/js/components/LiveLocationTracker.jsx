@@ -9,7 +9,7 @@ function isWorkingHours() {
     const now = new Date();
     const day = now.getDay();
     const hour = now.getHours();
-    return day >= 0 && day <= 4 && hour >= 9 && hour < 17; // Sun–Thu 9AM–5PM
+    return day >= 1 && day <= 6 && hour >= 9 && hour < 17; // Mon–Sat 9AM–5PM
 }
 
 /**

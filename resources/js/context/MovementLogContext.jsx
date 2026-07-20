@@ -58,7 +58,7 @@ export function MovementLogProvider({ children }) {
             <Modal
                 open={open}
                 onClose={close}
-                title={auto ? "You've left your UC" : 'Log Movement'}
+                title={auto ? "You've left your UC" : 'Movement Register'}
                 subtitle={auto ? 'Please log the reason for this movement' : 'Leaving UC premises during working hours'}
             >
                 <form
@@ -81,7 +81,7 @@ export function MovementLogProvider({ children }) {
                     </Field>
                     <ErrorText>{error}</ErrorText>
                     <Button type="submit" className="mt-2 w-full" disabled={mutation.isPending}>
-                        {mutation.isPending ? 'Logging…' : 'Log Movement'}
+                        {mutation.isPending ? 'Logging…' : 'Movement Register'}
                     </Button>
                 </form>
             </Modal>

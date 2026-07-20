@@ -43,7 +43,7 @@ export default function LiveMap() {
             <EmptyState
                 icon="📍"
                 title="No live locations yet"
-                subtitle="Secretaries share their location automatically during working hours (Sun–Thu, 9AM–5PM)."
+                subtitle="Secretaries share their location automatically during working hours (Mon–Sat, 9AM–5PM)."
             />
         );
     }

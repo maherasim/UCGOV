@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Modal } from './ui';
 
-const WORK_DAYS = [0, 1, 2, 3, 4]; // Sun–Thu — matches LiveLocationTracker / AttendanceAnalyticsPopup
+const WORK_DAYS = [1, 2, 3, 4, 5, 6]; // Mon–Sat — matches LiveLocationTracker / AttendanceAnalyticsPopup
 const CHECK_INTERVAL_MS = 60000;
 const SNOOZE_MS = 5 * 60000;
 
@@ -14,7 +14,7 @@ function isWorkingHours() {
 /**
  * Mounted once at the Secretary layout level so it watches connectivity/GPS across every
  * tab, not just Attendance — both attendance marking and live movement tracking depend on
- * internet + location being on during office hours (9AM–5PM, Sun–Thu).
+ * internet + location being on during office hours (9AM–5PM, Mon–Sat).
  */
 export default function ConnectivityMonitor() {
     const [offline, setOffline] = useState(!navigator.onLine);

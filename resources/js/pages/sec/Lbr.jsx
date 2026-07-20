@@ -118,8 +118,13 @@ function NewLbrWizard({ open, onClose }) {
         onError: (err) => setError(err.response?.data?.message || 'Could not submit application.'),
     });
 
-    const step1Valid = form.category && form.dob && age !== null && age >= 1 && age <= 7 && form.delay_reason && (form.delay_reason !== 'Other' || form.delay_reason_other) && form.child_name && form.child_gender;
-    const step2Valid = form.applicant_name && /^\d{5}-\d{7}-\d{1}$/.test(form.applicant_cnic);
+    const step1Valid = form.category && form.dob && age !== null && age >= 1 && age <= 7 && form.delay_reason && (form.delay_reason !== 'Other' || form.delay_reason_other) && form.child_name && form.child_gender && form.child_birth_place;
+    const step2Valid =
+        form.applicant_name &&
+        /^\d{5}-\d{7}-\d{1}$/.test(form.applicant_cnic) &&
+        form.applicant_address &&
+        form.applicant_father_name &&
+        form.applicant_mother_name;
     const missingRequiredDocs = visibleDocSlots.filter((d) => d.required && !docs[d.key]);
 
     return (
@@ -173,8 +178,8 @@ function NewLbrWizard({ open, onClose }) {
                             ))}
                         </div>
                     </Field>
-                    <Field label="Birth Place (optional)">
-                        <TextInput value={form.child_birth_place} onChange={set('child_birth_place')} />
+                    <Field label="Birth Place">
+                        <TextInput value={form.child_birth_place} onChange={set('child_birth_place')} required />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
                         <Field label="Birth Type">
@@ -196,6 +201,7 @@ function NewLbrWizard({ open, onClose }) {
 
             {step === 2 && (
                 <div>
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Applicant Details</div>
                     <Field label="Applicant Full Name">
                         <TextInput value={form.applicant_name} onChange={set('applicant_name')} required />
                     </Field>
@@ -215,16 +221,8 @@ function NewLbrWizard({ open, onClose }) {
                             <option value="Self">Self</option>
                         </Select>
                     </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                        <Field label="Father's Name (optional)">
-                            <TextInput value={form.applicant_father_name} onChange={set('applicant_father_name')} />
-                        </Field>
-                        <Field label="Mother's Name (optional)">
-                            <TextInput value={form.applicant_mother_name} onChange={set('applicant_mother_name')} />
-                        </Field>
-                    </div>
-                    <Field label="Address (optional)">
-                        <TextInput value={form.applicant_address} onChange={set('applicant_address')} />
+                    <Field label="Address">
+                        <TextInput value={form.applicant_address} onChange={set('applicant_address')} required />
                     </Field>
                     <Field label="Phone (optional)">
                         <TextInput
@@ -233,6 +231,17 @@ function NewLbrWizard({ open, onClose }) {
                             placeholder="0300-1234567"
                         />
                     </Field>
+
+                    <div className="mb-1.5 mt-4 border-t border-border pt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Parents Details</div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <Field label="Father's Name">
+                            <TextInput value={form.applicant_father_name} onChange={set('applicant_father_name')} required />
+                        </Field>
+                        <Field label="Mother's Name">
+                            <TextInput value={form.applicant_mother_name} onChange={set('applicant_mother_name')} required />
+                        </Field>
+                    </div>
+
                     <div className="flex gap-2">
                         <Button type="button" variant="ghost" onClick={() => setStep(1)}>Back</Button>
                         <Button type="button" className="flex-1" onClick={() => setStep(3)} disabled={!step2Valid}>
@@ -511,6 +520,7 @@ function CompleteApplicationModal({ lbrCase, onClose }) {
 
     const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
     const missingRequiredDocs = DOC_SLOTS.filter((d) => d.required && !docs[d.key]);
+    const formValid = form.child_birth_place && form.applicant_address && form.applicant_father_name && form.applicant_mother_name;
 
     const mutation = useMutation({
         mutationFn: () => {
@@ -533,8 +543,9 @@ function CompleteApplicationModal({ lbrCase, onClose }) {
             <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
                 ✅ Delay approved by ADLG. Fill in the remaining details and upload documents to forward for final review.
             </div>
-            <Field label="Birth Place (optional)">
-                <TextInput value={form.child_birth_place} onChange={set('child_birth_place')} />
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Child Details</div>
+            <Field label="Birth Place">
+                <TextInput value={form.child_birth_place} onChange={set('child_birth_place')} required />
             </Field>
             <div className="grid grid-cols-2 gap-3">
                 <Field label="Birth Type">
@@ -548,6 +559,8 @@ function CompleteApplicationModal({ lbrCase, onClose }) {
                     <TextInput value={form.child_hospital} onChange={set('child_hospital')} />
                 </Field>
             </div>
+
+            <div className="mb-1.5 mt-4 border-t border-border pt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Applicant Details</div>
             <Field label="Relation to Child">
                 <Select value={form.applicant_relation} onChange={set('applicant_relation')}>
                     <option value="Father">Father</option>
@@ -556,17 +569,19 @@ function CompleteApplicationModal({ lbrCase, onClose }) {
                     <option value="Self">Self</option>
                 </Select>
             </Field>
+            <Field label="Address">
+                <TextInput value={form.applicant_address} onChange={set('applicant_address')} required />
+            </Field>
+
+            <div className="mb-1.5 mt-4 border-t border-border pt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Parents Details</div>
             <div className="grid grid-cols-2 gap-3">
-                <Field label="Father's Name (optional)">
-                    <TextInput value={form.applicant_father_name} onChange={set('applicant_father_name')} />
+                <Field label="Father's Name">
+                    <TextInput value={form.applicant_father_name} onChange={set('applicant_father_name')} required />
                 </Field>
-                <Field label="Mother's Name (optional)">
-                    <TextInput value={form.applicant_mother_name} onChange={set('applicant_mother_name')} />
+                <Field label="Mother's Name">
+                    <TextInput value={form.applicant_mother_name} onChange={set('applicant_mother_name')} required />
                 </Field>
             </div>
-            <Field label="Address (optional)">
-                <TextInput value={form.applicant_address} onChange={set('applicant_address')} />
-            </Field>
 
             <div className="my-3 space-y-3">
                 {DOC_SLOTS.map((slot) => (
@@ -582,7 +597,7 @@ function CompleteApplicationModal({ lbrCase, onClose }) {
                 <p className="mb-2 text-xs text-ink-faint">Mandatory: {missingRequiredDocs.map((d) => d.label).join(', ')}</p>
             )}
             <ErrorText>{error}</ErrorText>
-            <Button className="w-full" onClick={() => mutation.mutate()} disabled={missingRequiredDocs.length > 0 || mutation.isPending}>
+            <Button className="w-full" onClick={() => mutation.mutate()} disabled={!formValid || missingRequiredDocs.length > 0 || mutation.isPending}>
                 {mutation.isPending ? 'Submitting…' : '📤 Forward to ADLG'}
             </Button>
         </Modal>

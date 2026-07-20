@@ -20,16 +20,16 @@ class StoreLbrCaseRequest extends FormRequest
 
             'child_name' => ['required', 'string', 'max:255'],
             'child_gender' => ['required', 'in:Male,Female,Other'],
-            'child_birth_place' => ['nullable', 'string', 'max:255'],
+            'child_birth_place' => ['required', 'string', 'max:255'],
             'child_birth_type' => ['nullable', 'string', 'max:100'],
             'child_hospital' => ['nullable', 'string', 'max:255'],
 
             'applicant_name' => ['required', 'string', 'max:255'],
             'applicant_cnic' => ['required', 'regex:/^\d{5}-\d{7}-\d{1}$/'],
             'applicant_relation' => ['nullable', 'string', 'max:100'],
-            'applicant_father_name' => ['nullable', 'string', 'max:255'],
-            'applicant_mother_name' => ['nullable', 'string', 'max:255'],
-            'applicant_address' => ['nullable', 'string', 'max:255'],
+            'applicant_father_name' => ['required', 'string', 'max:255'],
+            'applicant_mother_name' => ['required', 'string', 'max:255'],
+            'applicant_address' => ['required', 'string', 'max:255'],
             'applicant_phone' => ['nullable', 'regex:/^\d{4}-\d{7}$/'],
 
             'secretary_remarks' => ['nullable', 'string'],

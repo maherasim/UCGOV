@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { APP_BASE_PATH } from '../utils/basePath';
 import { Button, Modal } from './ui';
 
-const WORK_DAYS = [0, 1, 2, 3, 4]; // Sun–Thu
+const WORK_DAYS = [1, 2, 3, 4, 5, 6]; // Mon–Sat
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
@@ -20,7 +20,7 @@ export default function AttendanceAnalyticsPopup() {
         const now = new Date();
         if (!WORK_DAYS.includes(now.getDay())) return undefined;
 
-        const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
+        const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 30, 0);
         const endOfWindow = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 0, 0);
         const msUntilTarget = target.getTime() - now.getTime();
 
@@ -51,7 +51,7 @@ export default function AttendanceAnalyticsPopup() {
             <div className="py-2 text-center">
                 <div className="mb-2 text-4xl">📊</div>
                 <p className="mb-5 text-sm leading-relaxed text-ink-muted">
-                    It's 10:00 AM on {DAY_NAMES[new Date().getDay()]}. Would you like to generate today's attendance analytics report for
+                    It's 10:30 AM on {DAY_NAMES[new Date().getDay()]}. Would you like to generate today's attendance analytics report for
                     Tehsil {user?.adlg_profile?.tehsil}?
                 </p>
                 <div className="flex justify-center gap-3">
