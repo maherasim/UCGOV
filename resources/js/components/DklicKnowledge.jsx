@@ -345,12 +345,12 @@ export default function DklicKnowledge({ role }) {
     });
 
     return (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-10">
+            <div className="lg:col-span-7">
                 <AiAssistant role={role} />
             </div>
 
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-3">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="min-w-[200px] flex-1">
                         <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rules, gazette no., subject, keywords…" />

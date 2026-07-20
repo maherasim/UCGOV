@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BellIcon } from '@heroicons/react/24/outline';
 import client from '../api/client';
+import { playNotificationChime } from '../utils/notificationSound';
 import { EmptyState, FullScreenSpinner } from './ui';
 
 function timeAgo(iso) {
@@ -33,6 +34,17 @@ export default function NotificationBell() {
         queryFn: () => client.get('/api/notifications').then((r) => r.data),
         refetchInterval: 30000,
     });
+
+    const prevUnreadRef = useRef(null);
+    useEffect(() => {
+        const unread = data?.meta?.unread_count;
+        if (unread === undefined) return;
+        // Skip the first load — only chime when the count actually goes up from what we last saw.
+        if (prevUnreadRef.current !== null && unread > prevUnreadRef.current) {
+            playNotificationChime();
+        }
+        prevUnreadRef.current = unread;
+    }, [data?.meta?.unread_count]);
 
     const markReadMutation = useMutation({
         mutationFn: (id) => client.post(`/api/notifications/${id}/read`),
