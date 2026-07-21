@@ -347,10 +347,12 @@ export default function DklicKnowledge({ role }) {
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-10">
             <div className="lg:col-span-7">
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">🤖 Local Government Chatbot</h2>
                 <AiAssistant role={role} />
             </div>
 
             <div className="lg:col-span-3">
+                <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">📚 Local Government Library</h2>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="min-w-[200px] flex-1">
                         <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rules, gazette no., subject, keywords…" />

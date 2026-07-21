@@ -54,7 +54,7 @@ const NAV_GROUPS = [
         items: [
             { to: 'newsletters', label: 'Newsletters', icon: NewspaperIcon },
             { to: 'dklic', label: 'Knowledge', icon: BookOpenIcon },
-            { to: 'inquiries', label: 'Inquiry', icon: DocumentTextIcon },
+            { to: 'inquiries', label: 'Inquiry Report Writer', icon: DocumentTextIcon },
         ],
     },
     {

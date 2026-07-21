@@ -4,7 +4,7 @@ export default function Dklic() {
     return (
         <div>
             <div className="mb-4">
-                <h1 className="text-xl font-bold text-ink">Knowledge Centre</h1>
+                <h1 className="text-xl font-bold text-ink">Local Government Library</h1>
                 <p className="text-sm text-ink-muted">DKLIC — Digital Knowledge, Legal Intelligence &amp; Notifications Centre</p>
             </div>
             <DklicKnowledge role="adlg" />
