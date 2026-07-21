@@ -25,6 +25,21 @@ class UnionCouncilController extends Controller
     }
 
     /**
+     * Read-only, own-district view for DDLG — every UC across every tehsil in their district.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $ucs = UnionCouncil::whereHas('tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['tehsil.district', 'secretaryProfile.user'])
+            ->orderBy('name')
+            ->get();
+
+        return UnionCouncilResource::collection($ucs);
+    }
+
+    /**
      * Read-only, Punjab-wide view for Super Admin — every UC across every tehsil/district,
      * A–Z. Editing stays exclusive to the owning ADLG (see index()/update() above).
      *

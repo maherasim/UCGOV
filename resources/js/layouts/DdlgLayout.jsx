@@ -2,17 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     Squares2X2Icon,
-    GlobeAsiaAustraliaIcon,
+    ScaleIcon,
     MapPinIcon,
     BuildingLibraryIcon,
-    HomeModernIcon,
-    UserGroupIcon,
-    UsersIcon,
-    ClipboardDocumentListIcon,
-    DocumentTextIcon,
-    NewspaperIcon,
     IdentificationIcon,
-    ShieldCheckIcon,
+    UserGroupIcon,
+    FingerPrintIcon,
+    ClipboardDocumentListIcon,
+    NewspaperIcon,
+    DocumentTextIcon,
     BookOpenIcon,
     Cog6ToothIcon,
     ChevronDownIcon,
@@ -29,30 +27,34 @@ const NAV_GROUPS = [
         items: [{ to: 'dashboard', label: 'Dashboard', icon: Squares2X2Icon }],
     },
     {
-        label: 'Geography',
+        label: 'Registry',
         items: [
-            { to: 'divisions', label: 'Divisions', icon: GlobeAsiaAustraliaIcon },
-            { to: 'districts', label: 'Districts', icon: MapPinIcon },
-            { to: 'tehsils', label: 'Tehsils', icon: BuildingLibraryIcon },
-            { to: 'union-councils', label: 'Union Councils', icon: HomeModernIcon },
+            { to: 'cases', label: 'Divorce/Khula Cases', icon: ScaleIcon },
+            { to: 'lbr', label: 'Birth Registration', icon: UserGroupIcon },
         ],
     },
     {
-        label: 'Administration',
+        label: 'District Oversight',
         items: [
-            { to: 'ddlgs', label: 'DDLGs', icon: ShieldCheckIcon },
+            { to: 'tehsils', label: 'Tehsils', icon: MapPinIcon },
+            { to: 'union-councils', label: 'Union Councils', icon: BuildingLibraryIcon },
+            { to: 'secretaries', label: 'Secretaries', icon: IdentificationIcon },
             { to: 'adlgs', label: 'ADLGs', icon: UserGroupIcon },
-            { to: 'secretaries', label: 'Secretaries', icon: UsersIcon },
-            { to: 'audit-log', label: 'Audit Log', icon: ClipboardDocumentListIcon },
+        ],
+    },
+    {
+        label: 'Reports',
+        items: [
+            { to: 'attendance', label: 'Attendance', icon: FingerPrintIcon },
+            { to: 'reports', label: 'Daily Reports', icon: ClipboardDocumentListIcon },
         ],
     },
     {
         label: 'Communications',
         items: [
-            { to: 'inquiries', label: 'Inquiry Requests', icon: DocumentTextIcon },
             { to: 'newsletters', label: 'Newsletters', icon: NewspaperIcon },
-            { to: 'dklic', label: 'DKLIC', icon: BookOpenIcon },
-            { to: 'profiles', label: 'Profiles', icon: IdentificationIcon },
+            { to: 'dklic', label: 'Knowledge', icon: BookOpenIcon },
+            { to: 'inquiries', label: 'Inquiry', icon: DocumentTextIcon },
         ],
     },
     {
@@ -91,7 +93,9 @@ function UserMenu() {
                 <Avatar user={user} size="sm" />
                 <div className="text-left">
                     <div className="text-sm font-semibold leading-tight text-ink">{user?.name}</div>
-                    <div className="text-xs leading-tight text-ink-muted">Super Administrator</div>
+                    <div className="text-xs leading-tight text-ink-muted">
+                        {user?.ddlg_profile?.district ? `DDLG · ${user.ddlg_profile.district}` : 'Deputy Director LG'}
+                    </div>
                 </div>
                 <ChevronDownIcon className="h-4 w-4 text-ink-faint" />
             </button>
@@ -117,7 +121,7 @@ function UserMenu() {
     );
 }
 
-export default function AdminLayout() {
+export default function DdlgLayout() {
     const location = useLocation();
     const current = ALL_ITEMS.find((i) => location.pathname.endsWith(i.to));
 
@@ -129,7 +133,7 @@ export default function AdminLayout() {
                         <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
-                        <div className="text-sm font-bold leading-tight">UC Governance</div>
+                        <div className="text-sm font-bold leading-snug">Personal Assistant to DDLG for District Management</div>
                     </div>
                 </div>
 
@@ -170,7 +174,7 @@ export default function AdminLayout() {
                 <header className="flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-3.5">
                     <div>
                         <h1 className="text-base font-bold text-ink">{current?.label || 'Dashboard'}</h1>
-                        <p className="text-xs text-ink-muted">Union Council Governance &amp; Administration</p>
+                        <p className="text-xs text-ink-muted">District Oversight &amp; Administration</p>
                     </div>
                     <div className="flex items-center gap-4">
                         <NotificationBell />

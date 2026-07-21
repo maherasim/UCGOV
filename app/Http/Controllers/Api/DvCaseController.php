@@ -62,6 +62,33 @@ class DvCaseController extends Controller
         );
     }
 
+    /**
+     * Read-only, own-district view for DDLG — every case across every tehsil in their
+     * district, for oversight. DDLG has no action endpoints on this module.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $query = DvCase::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['unionCouncil.tehsil', 'secretary']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        return DvCaseResource::collection($query->latest('receipt_date')->get());
+    }
+
+    public function showForDdlg(Request $request, DvCase $case)
+    {
+        $this->authorizeOwnDistrict($request, $case);
+
+        return new DvCaseResource(
+            $case->load(['unionCouncil.tehsil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder'])
+        );
+    }
+
     public function markSeen(Request $request, DvCase $case)
     {
         $this->authorizeOwnTehsil($request, $case);
@@ -195,6 +222,12 @@ class DvCaseController extends Controller
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
         abort_unless($case->unionCouncil->tehsil_id === $tehsilId, 403);
+    }
+
+    protected function authorizeOwnDistrict(Request $request, DvCase $case): void
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+        abort_unless($case->unionCouncil->tehsil->district_id === $districtId, 403);
     }
 
     public function indexForSecretary(Request $request)

@@ -27,6 +27,22 @@ class AdlgController extends Controller
         return UserResource::collection($adlgs);
     }
 
+    /**
+     * Read-only, own-district view for DDLG — every ADLG across every tehsil in their district.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $adlgs = User::where('role', 'adlg')
+            ->whereHas('adlgProfile.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with('adlgProfile.tehsil.district')
+            ->orderBy('name')
+            ->get();
+
+        return UserResource::collection($adlgs);
+    }
+
     public function store(StoreAdlgRequest $request)
     {
         $tehsil = Tehsil::findOrFail($request->integer('tehsil_id'));

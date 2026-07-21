@@ -30,6 +30,22 @@ class TehsilController extends Controller
         return TehsilResource::collection($query->orderBy('name')->paginate($perPage));
     }
 
+    /**
+     * Read-only, own-district view for DDLG — every tehsil under their district.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $tehsils = Tehsil::where('district_id', $districtId)
+            ->with('district.division')
+            ->withCount('unionCouncils')
+            ->orderBy('name')
+            ->get();
+
+        return TehsilResource::collection($tehsils);
+    }
+
     public function store(StoreTehsilRequest $request)
     {
         $tehsil = Tehsil::create($request->validated());

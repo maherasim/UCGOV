@@ -19,4 +19,9 @@ class District extends Model
     {
         return $this->hasMany(Tehsil::class);
     }
+
+    public function ddlgProfiles(): HasMany
+    {
+        return $this->hasMany(DdlgProfile::class);
+    }
 }

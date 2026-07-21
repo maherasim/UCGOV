@@ -91,6 +91,23 @@ class DailyReportController extends Controller
         return DailyReportResource::collection($reports);
     }
 
+    /**
+     * Read-only, own-district view for DDLG — every report across every tehsil/UC in
+     * their district.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $reports = DailyReport::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['secretary', 'unionCouncil'])
+            ->latest('report_date')
+            ->take(200)
+            ->get();
+
+        return DailyReportResource::collection($reports);
+    }
+
     public function markReviewed(Request $request, DailyReport $report)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -112,6 +129,28 @@ class DailyReportController extends Controller
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
         $reports = DailyReport::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with(['secretary', 'unionCouncil'])
+            ->orderByDesc('report_date')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Daily Reports');
+
+        $this->buildReportsSummarySheet($spreadsheet->getActiveSheet(), $reports);
+        $this->buildReportsDetailSheet($spreadsheet->createSheet(), $reports);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Daily_Reports_'.now()->toDateString().'.xlsx');
+    }
+
+    /**
+     * Same styled workbook as export(), scoped to the DDLG's whole district.
+     */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $reports = DailyReport::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
             ->with(['secretary', 'unionCouncil'])
             ->orderByDesc('report_date')
             ->get();

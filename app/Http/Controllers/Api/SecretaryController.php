@@ -34,6 +34,23 @@ class SecretaryController extends Controller
     }
 
     /**
+     * Read-only, own-district view for DDLG — every secretary across every tehsil/UC
+     * in their district.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $secretaries = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['secretaryProfile.unionCouncil.tehsil', 'secretaryProfile.additionalCharges.unionCouncil'])
+            ->orderBy('name')
+            ->get();
+
+        return UserResource::collection($secretaries);
+    }
+
+    /**
      * Read-only, Punjab-wide view for Super Admin — every secretary across every tehsil,
      * with a "show" detail action. Creating/editing stays exclusive to the owning ADLG
      * (see index()/store()/update() above).

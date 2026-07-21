@@ -10,6 +10,7 @@ import Divisions from './pages/admin/Divisions';
 import Districts from './pages/admin/Districts';
 import Tehsils from './pages/admin/Tehsils';
 import Adlgs from './pages/admin/Adlgs';
+import Ddlgs from './pages/admin/Ddlgs';
 import AdminUnionCouncils from './pages/admin/UnionCouncils';
 import AdminSecretaries from './pages/admin/Secretaries';
 import AuditLog from './pages/admin/AuditLog';
@@ -32,6 +33,21 @@ import AdlgDklic from './pages/adlg/Dklic';
 import AdlgLbr from './pages/adlg/Lbr';
 import AdlgProfile from './pages/adlg/Profile';
 
+import DdlgLayout from './layouts/DdlgLayout';
+import DdlgDashboard from './pages/ddlg/Dashboard';
+import DdlgTehsils from './pages/ddlg/Tehsils';
+import DdlgUnionCouncils from './pages/ddlg/UnionCouncils';
+import DdlgSecretaries from './pages/ddlg/Secretaries';
+import DdlgAdlgs from './pages/ddlg/Adlgs';
+import DdlgCases from './pages/ddlg/Cases';
+import DdlgLbr from './pages/ddlg/Lbr';
+import DdlgAttendance from './pages/ddlg/Attendance';
+import DdlgReports from './pages/ddlg/Reports';
+import DdlgInquiries from './pages/ddlg/Inquiries';
+import DdlgNewsletters from './pages/ddlg/Newsletters';
+import DdlgDklic from './pages/ddlg/Dklic';
+import DdlgProfile from './pages/ddlg/Profile';
+
 import SecLayout from './layouts/SecLayout';
 import SecDashboard from './pages/sec/Dashboard';
 import SecAttendance from './pages/sec/Attendance';
@@ -44,6 +60,7 @@ import SecProfile from './pages/sec/Profile';
 const ROLE_HOME = {
     sa: '/admin/dashboard',
     adlg: '/adlg/dashboard',
+    ddlg: '/ddlg/dashboard',
     sec: '/sec/dashboard',
 };
 
@@ -104,6 +121,7 @@ export default function App() {
                 <Route path="tehsils" element={<Tehsils />} />
                 <Route path="union-councils" element={<AdminUnionCouncils />} />
                 <Route path="adlgs" element={<Adlgs />} />
+                <Route path="ddlgs" element={<Ddlgs />} />
                 <Route path="secretaries" element={<AdminSecretaries />} />
                 <Route path="audit-log" element={<AuditLog />} />
                 <Route path="inquiries" element={<AdminInquiries />} />
@@ -133,6 +151,30 @@ export default function App() {
                 <Route path="dklic" element={<AdlgDklic />} />
                 <Route path="inquiries" element={<AdlgInquiries />} />
                 <Route path="profile" element={<AdlgProfile />} />
+            </Route>
+
+            <Route
+                path="/ddlg"
+                element={
+                    <RequireRole role="ddlg">
+                        <DdlgLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<DdlgDashboard />} />
+                <Route path="tehsils" element={<DdlgTehsils />} />
+                <Route path="union-councils" element={<DdlgUnionCouncils />} />
+                <Route path="secretaries" element={<DdlgSecretaries />} />
+                <Route path="adlgs" element={<DdlgAdlgs />} />
+                <Route path="cases" element={<DdlgCases />} />
+                <Route path="lbr" element={<DdlgLbr />} />
+                <Route path="attendance" element={<DdlgAttendance />} />
+                <Route path="reports" element={<DdlgReports />} />
+                <Route path="newsletters" element={<DdlgNewsletters />} />
+                <Route path="dklic" element={<DdlgDklic />} />
+                <Route path="inquiries" element={<DdlgInquiries />} />
+                <Route path="profile" element={<DdlgProfile />} />
             </Route>
 
             <Route

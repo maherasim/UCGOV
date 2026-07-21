@@ -68,6 +68,27 @@ class InquiryController extends Controller
         return InquiryResource::collection($inquiries);
     }
 
+    /**
+     * District oversight for DDLG — every inquiry filed by an ADLG in their district,
+     * plus any inquiries the DDLG has filed themselves (the "adlg_id" column is really
+     * just "requester_id"; store() below works unchanged for a DDLG-filed inquiry too).
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+        $userId = $request->user()->id;
+
+        $inquiries = Inquiry::with(['adlg', 'unionCouncil'])
+            ->where(function ($q) use ($districtId, $userId) {
+                $q->where('adlg_id', $userId)
+                    ->orWhereHas('adlg.adlgProfile.tehsil', fn ($t) => $t->where('district_id', $districtId));
+            })
+            ->latest('submitted_at')
+            ->get();
+
+        return InquiryResource::collection($inquiries);
+    }
+
     public function store(StoreInquiryRequest $request)
     {
         $filePath = $request->file('file')->store('inquiries', 'public');

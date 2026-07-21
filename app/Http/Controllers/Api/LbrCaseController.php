@@ -12,6 +12,7 @@ use App\Http\Requests\Api\StoreLbrDelayRequest;
 use App\Http\Resources\LbrCaseResource;
 use App\Models\AuditLog;
 use App\Models\CaseNotification;
+use App\Models\DdlgProfile;
 use App\Models\LbrCase;
 use App\Models\LbrDocument;
 use App\Models\LbrTimelineEvent;
@@ -34,6 +35,7 @@ class LbrCaseController extends Controller
         'RETURNED' => 'warning',
         'REGISTERED' => 'success',
         'PENDING_DELAY_APPROVAL' => 'info',
+        'PENDING_DDLG_APPROVAL' => 'info',
         'DELAY_APPROVED' => 'success',
         'DELAY_RETURNED' => 'warning',
     ];
@@ -50,7 +52,7 @@ class LbrCaseController extends Controller
 
     protected function relations(): array
     {
-        return ['unionCouncil', 'secretary', 'adlg', 'documents', 'timeline.actor'];
+        return ['unionCouncil.tehsil', 'secretary', 'adlg', 'ddlg', 'documents', 'timeline.actor'];
     }
 
     public function indexForSecretary(Request $request)
@@ -265,9 +267,11 @@ class LbrCaseController extends Controller
     }
 
     /**
-     * ADLG's decision on the lightweight delay request. Approve unlocks the full
-     * application (completeApplication()); Reject ends the case; Return sends it
-     * back to the secretary for correction and resubmission.
+     * ADLG's decision on the lightweight delay request. Approve forwards it to the
+     * DDLG for the final sign-off on the delay itself (reviewDelayRequestByDdlg());
+     * Reject ends the case; Return sends it back to the secretary for correction
+     * and resubmission. ADLG never has the last word on a 7+ year delay — that
+     * authority sits with DDLG.
      */
     public function reviewDelayRequest(ReviewLbrDelayRequest $request, LbrCase $lbrCase)
     {
@@ -275,7 +279,7 @@ class LbrCaseController extends Controller
         abort_unless($lbrCase->status === 'PENDING_DELAY_APPROVAL', 422, 'This delay request has already been decided.');
 
         $statusFor = [
-            'APPROVED' => 'DELAY_APPROVED',
+            'APPROVED' => 'PENDING_DDLG_APPROVAL',
             'REJECTED' => 'REJECTED',
             'RETURNED' => 'DELAY_RETURNED',
         ];
@@ -291,7 +295,7 @@ class LbrCaseController extends Controller
             ]);
 
             $messages = [
-                'APPROVED' => 'Delay APPROVED by ADLG. Secretary may now complete the full application. Remarks: '.$request->string('observations'),
+                'APPROVED' => 'Delay approved by ADLG and forwarded to DDLG for final sign-off. Remarks: '.$request->string('observations'),
                 'REJECTED' => 'Delay approval REJECTED by ADLG. Reason: '.$request->string('observations'),
                 'RETURNED' => 'Delay request returned for correction by ADLG. Reason: '.$request->string('observations'),
             ];
@@ -312,14 +316,91 @@ class LbrCaseController extends Controller
                 'note' => "{$lbrCase->lbr_id} delay request {$action} by ADLG",
             ]);
 
+            if ($action === 'APPROVED') {
+                $districtId = $lbrCase->unionCouncil->tehsil->district_id;
+                $ddlgId = optional(DdlgProfile::where('district_id', $districtId)->first())->user_id;
+
+                if ($ddlgId) {
+                    CaseNotification::create([
+                        'to_user_id' => $ddlgId,
+                        'from_user_id' => $request->user()->id,
+                        'type' => 'LBR_DDLG_PENDING',
+                        'message' => "ADLG forwarded a delay approval request for final sign-off: {$lbrCase->lbr_id} — {$lbrCase->child_name} ({$lbrCase->unionCouncil->name}).",
+                    ]);
+                }
+            } else {
+                CaseNotification::create([
+                    'to_user_id' => $lbrCase->secretary_id,
+                    'from_user_id' => $request->user()->id,
+                    'type' => 'LBR_DELAY_'.$action,
+                    'message' => $action === 'REJECTED'
+                        ? "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was rejected."
+                        : "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was returned for correction.",
+                ]);
+            }
+        });
+
+        return new LbrCaseResource($lbrCase->fresh($this->relations()));
+    }
+
+    /**
+     * DDLG's final sign-off on the delay itself, for a case the ADLG has already
+     * approved and forwarded. Approve unlocks the full application for the secretary
+     * (completeApplication()); Reject ends the case; Return sends it back to the
+     * secretary, re-entering the normal PENDING_DELAY_APPROVAL → ADLG review pipeline
+     * from the top (resubmitDelayRequest()) rather than skipping straight back to DDLG.
+     */
+    public function reviewDelayRequestByDdlg(ReviewLbrDelayRequest $request, LbrCase $lbrCase)
+    {
+        $this->authorizeOwnDistrict($request, $lbrCase);
+        abort_unless($lbrCase->status === 'PENDING_DDLG_APPROVAL', 422, 'This delay request is not awaiting DDLG approval.');
+
+        $statusFor = [
+            'APPROVED' => 'DELAY_APPROVED',
+            'REJECTED' => 'REJECTED',
+            'RETURNED' => 'DELAY_RETURNED',
+        ];
+
+        DB::transaction(function () use ($request, $lbrCase, $statusFor) {
+            $action = $request->string('action')->toString();
+            $newStatus = $statusFor[$action];
+
+            $lbrCase->update([
+                'status' => $newStatus,
+                'ddlg_id' => $request->user()->id,
+                'ddlg_observations' => $request->string('observations')->toString(),
+            ]);
+
+            $messages = [
+                'APPROVED' => 'Delay finally APPROVED by DDLG. Secretary may now complete the full application. Remarks: '.$request->string('observations'),
+                'REJECTED' => 'Delay approval REJECTED by DDLG. Reason: '.$request->string('observations'),
+                'RETURNED' => 'Delay request returned for correction by DDLG. Reason: '.$request->string('observations'),
+            ];
+
+            LbrTimelineEvent::create([
+                'lbr_case_id' => $lbrCase->id,
+                'stage' => $newStatus,
+                'event_date' => now()->toDateString(),
+                'actor_user_id' => $request->user()->id,
+                'note' => $messages[$action],
+            ]);
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'LBR_DDLG_'.$action,
+                'entity_type' => 'LbrCase',
+                'entity_id' => $lbrCase->id,
+                'note' => "{$lbrCase->lbr_id} delay request {$action} by DDLG",
+            ]);
+
             CaseNotification::create([
                 'to_user_id' => $lbrCase->secretary_id,
                 'from_user_id' => $request->user()->id,
-                'type' => 'LBR_DELAY_'.$action,
+                'type' => 'LBR_DDLG_'.$action,
                 'message' => match ($action) {
-                    'APPROVED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was approved. You may now complete the full application.",
-                    'REJECTED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was rejected.",
-                    'RETURNED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was returned for correction.",
+                    'APPROVED' => "DDLG approved the delay for {$lbrCase->lbr_id} — {$lbrCase->child_name}. You may now complete the full application.",
+                    'REJECTED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was rejected by DDLG.",
+                    'RETURNED' => "Your delay approval request for {$lbrCase->lbr_id} — {$lbrCase->child_name} was returned for correction by DDLG.",
                 },
             ]);
         });
@@ -442,6 +523,32 @@ class LbrCaseController extends Controller
         return new LbrCaseResource($lbrCase->load($this->relations()));
     }
 
+    /**
+     * Read-only, own-district view for DDLG — the full LBR registry across every
+     * tehsil in their district, for browsing/oversight. The one action DDLG can take
+     * is reviewDelayRequestByDdlg(), gated separately to PENDING_DDLG_APPROVAL cases.
+     */
+    public function indexForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $query = LbrCase::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['unionCouncil.tehsil', 'secretary', 'adlg']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        return LbrCaseResource::collection($query->latest('created_at')->get());
+    }
+
+    public function showForDdlg(Request $request, LbrCase $lbrCase)
+    {
+        $this->authorizeOwnDistrict($request, $lbrCase);
+
+        return new LbrCaseResource($lbrCase->load($this->relations()));
+    }
+
     public function review(ReviewLbrCaseRequest $request, LbrCase $lbrCase)
     {
         $this->authorizeOwnTehsil($request, $lbrCase);
@@ -487,6 +594,8 @@ class LbrCaseController extends Controller
     {
         if ($request->user()->role === 'adlg') {
             $this->authorizeOwnTehsil($request, $lbrCase);
+        } elseif ($request->user()->role === 'ddlg') {
+            $this->authorizeOwnDistrict($request, $lbrCase);
         } else {
             $this->authorizeOwnUc($request, $lbrCase);
         }
@@ -540,11 +649,40 @@ class LbrCaseController extends Controller
         return $this->xlDownload($spreadsheet, 'LBR_Registry_'.now()->toDateString().'.xlsx');
     }
 
+    /**
+     * Same styled workbook as export(), scoped to every UC across every tehsil in the
+     * DDLG's district instead of a single tehsil.
+     */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $query = LbrCase::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['unionCouncil.tehsil', 'secretary', 'adlg', 'documents', 'timeline.actor']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        $cases = $query->latest('created_at')->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Birth Registration (LBR) Report');
+
+        $this->buildLbrSummarySheet($spreadsheet->getActiveSheet(), $cases, $request);
+        $this->buildLbrDetailSheet($spreadsheet->createSheet(), $cases);
+        $this->buildLbrTimelineSheet($spreadsheet->createSheet(), $cases);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'LBR_Registry_'.now()->toDateString().'.xlsx');
+    }
+
     protected function buildLbrSummarySheet(Worksheet $sheet, $cases, Request $request): void
     {
         $sheet->setTitle('Registry Summary');
 
-        $subtitle = 'All Birth Registration cases in this tehsil'.($request->filled('status')
+        $scope = $request->user()->role === 'ddlg' ? 'district' : 'tehsil';
+        $subtitle = "All Birth Registration cases in this {$scope}".($request->filled('status')
             ? ' · Status filter: '.(LbrCaseResource::STATUS_LABELS[$request->string('status')->toString()] ?? $request->string('status'))
             : '');
         $this->xlTitleBanner($sheet, 'UC Governance Platform — Birth Registration Summary', $subtitle, 3);
@@ -693,5 +831,11 @@ class LbrCaseController extends Controller
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
         abort_unless($lbrCase->unionCouncil->tehsil_id === $tehsilId, 403);
+    }
+
+    protected function authorizeOwnDistrict(Request $request, LbrCase $lbrCase): void
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+        abort_unless($lbrCase->unionCouncil->tehsil->district_id === $districtId, 403);
     }
 }

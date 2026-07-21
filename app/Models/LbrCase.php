@@ -33,6 +33,8 @@ class LbrCase extends Model
         'secretary_remarks',
         'adlg_observations',
         'adlg_order_no',
+        'ddlg_id',
+        'ddlg_observations',
         'certificate_no',
         'certificate_date',
         'certificate_remarks',
@@ -64,6 +66,11 @@ class LbrCase extends Model
     public function adlg(): BelongsTo
     {
         return $this->belongsTo(User::class, 'adlg_id');
+    }
+
+    public function ddlg(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ddlg_id');
     }
 
     public function documents(): HasMany

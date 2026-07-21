@@ -18,7 +18,7 @@ class DklicKnowledgeController extends Controller
 {
     protected function audienceTag(User $user): string
     {
-        return $user->role === 'adlg' ? 'ADLG' : 'Secretary UC';
+        return in_array($user->role, ['adlg', 'ddlg'], true) ? 'ADLG' : 'Secretary UC';
     }
 
     protected function baseQuery(User $user)

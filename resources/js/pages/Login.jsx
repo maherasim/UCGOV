@@ -7,6 +7,7 @@ import { APP_BASE_PATH } from '../utils/basePath';
 const ROLE_HOME = {
     sa: '/admin/dashboard',
     adlg: '/adlg/dashboard',
+    ddlg: '/ddlg/dashboard',
     sec: '/sec/dashboard',
 };
 

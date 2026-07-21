@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button, Card, ErrorText, Field, PasswordInput } from '../components/ui';
 import { browserSupportsWebAuthn, enrollFingerprint } from '../utils/webauthn';
 
-const ROLE_HOME = { sa: '/admin/dashboard', adlg: '/adlg/dashboard', sec: '/sec/dashboard' };
+const ROLE_HOME = { sa: '/admin/dashboard', adlg: '/adlg/dashboard', ddlg: '/ddlg/dashboard', sec: '/sec/dashboard' };
 
 export default function FirstLoginSetup() {
     const { user, refresh } = useAuth();

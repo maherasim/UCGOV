@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DailyReportController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DdlgController;
+use App\Http\Controllers\Api\DdlgDashboardController;
 use App\Http\Controllers\Api\DklicDocumentController;
 use App\Http\Controllers\Api\DklicKnowledgeController;
 use App\Http\Controllers\Api\DvCaseController;
@@ -66,6 +68,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/adlgs', [AdlgController::class, 'store']);
         Route::put('/adlgs/{adlg}', [AdlgController::class, 'update']);
         Route::patch('/adlgs/{adlg}/toggle-active', [AdlgController::class, 'toggleActive']);
+
+        Route::get('/ddlgs', [DdlgController::class, 'index']);
+        Route::post('/ddlgs', [DdlgController::class, 'store']);
+        Route::put('/ddlgs/{ddlg}', [DdlgController::class, 'update']);
+        Route::patch('/ddlgs/{ddlg}/toggle-active', [DdlgController::class, 'toggleActive']);
 
         Route::get('/union-councils', [UnionCouncilController::class, 'indexForAdmin']);
 
@@ -153,6 +160,45 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForAdlg']);
         Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
         Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequest']);
+        Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
+    });
+
+    Route::middleware('role:ddlg')->prefix('ddlg')->group(function () {
+        Route::get('/dashboard', [DdlgDashboardController::class, 'index']);
+
+        Route::get('/tehsils', [TehsilController::class, 'indexForDdlg']);
+        Route::get('/union-councils', [UnionCouncilController::class, 'indexForDdlg']);
+        Route::get('/secretaries', [SecretaryController::class, 'indexForDdlg']);
+        Route::get('/adlgs', [AdlgController::class, 'indexForDdlg']);
+
+        Route::get('/cases', [DvCaseController::class, 'indexForDdlg']);
+        Route::get('/cases/{case}', [DvCaseController::class, 'showForDdlg']);
+
+        Route::get('/newsletters', [NewsletterController::class, 'indexForAdlg']);
+        Route::post('/newsletters/{newsletter}/respond', [NewsletterController::class, 'respond']);
+
+        Route::get('/inquiries', [InquiryController::class, 'indexForDdlg']);
+        Route::post('/inquiries', [InquiryController::class, 'store']);
+
+        Route::get('/attendance', [AttendanceController::class, 'indexForDdlg']);
+        Route::get('/attendance/analytics-export', [AttendanceController::class, 'analyticsExportForDdlg']);
+        Route::get('/movement-log', [AttendanceController::class, 'movementIndexForDdlg']);
+        Route::get('/movement-log/export', [AttendanceController::class, 'movementExportForDdlg']);
+
+        Route::get('/reports', [DailyReportController::class, 'indexForDdlg']);
+        Route::get('/reports/export', [DailyReportController::class, 'exportForDdlg']);
+
+        Route::get('/dklic-documents', [DklicKnowledgeController::class, 'index']);
+        Route::post('/dklic-documents/{document}/view', [DklicKnowledgeController::class, 'view']);
+        Route::post('/dklic-documents/{document}/download', [DklicKnowledgeController::class, 'download']);
+        Route::post('/dklic-documents/{document}/bookmark', [DklicKnowledgeController::class, 'toggleBookmark']);
+        Route::post('/dklic-documents/{document}/acknowledge', [DklicKnowledgeController::class, 'acknowledge']);
+        Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
+
+        Route::get('/lbr-cases', [LbrCaseController::class, 'indexForDdlg']);
+        Route::get('/lbr-cases-export', [LbrCaseController::class, 'exportForDdlg']);
+        Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForDdlg']);
+        Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequestByDdlg']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
     });
 

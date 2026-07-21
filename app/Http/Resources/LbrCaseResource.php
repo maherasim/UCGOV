@@ -15,6 +15,7 @@ class LbrCaseResource extends JsonResource
         'RETURNED' => 'Returned for Correction',
         'REGISTERED' => 'Birth Registered',
         'PENDING_DELAY_APPROVAL' => 'Pending ADLG Delay Approval',
+        'PENDING_DDLG_APPROVAL' => 'Pending DDLG Final Approval',
         'DELAY_APPROVED' => 'Delay Approved — Complete Application',
         'DELAY_RETURNED' => 'Delay Request Returned',
     ];
@@ -32,8 +33,10 @@ class LbrCaseResource extends JsonResource
 
             'union_council' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->name),
             'union_council_id' => $this->union_council_id,
+            'tehsil' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') ? $this->unionCouncil->tehsil?->name : null),
             'secretary' => $this->whenLoaded('secretary', fn () => $this->secretary?->name),
             'adlg' => $this->whenLoaded('adlg', fn () => $this->adlg?->name),
+            'ddlg' => $this->whenLoaded('ddlg', fn () => $this->ddlg?->name),
 
             'dob' => $this->dob?->toDateString(),
             'age_at_application' => (float) $this->age_at_application,
@@ -61,6 +64,7 @@ class LbrCaseResource extends JsonResource
 
             'adlg_observations' => $this->adlg_observations,
             'adlg_order_no' => $this->adlg_order_no,
+            'ddlg_observations' => $this->ddlg_observations,
 
             'certificate' => $this->certificate_no ? [
                 'certificate_no' => $this->certificate_no,

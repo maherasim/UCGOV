@@ -28,6 +28,11 @@ class UserResource extends JsonResource
                 'tehsil' => $this->whenLoaded('adlgProfile', fn () => $this->adlgProfile->tehsil?->name),
                 'grade' => $this->adlgProfile->grade,
             ]),
+            'ddlg_profile' => $this->whenLoaded('ddlgProfile', fn () => [
+                'district_id' => $this->ddlgProfile->district_id,
+                'district' => $this->whenLoaded('ddlgProfile', fn () => $this->ddlgProfile->district?->name),
+                'grade' => $this->ddlgProfile->grade,
+            ]),
             'secretary_profile' => $this->whenLoaded('secretaryProfile', fn () => [
                 'union_council_id' => $this->secretaryProfile->union_council_id,
                 'union_council' => $this->secretaryProfile->unionCouncil?->name,

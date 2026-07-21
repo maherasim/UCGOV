@@ -41,6 +41,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             PunjabGeographySeeder::class,
             AdlgOfficerSeeder::class,
+            DdlgOfficerSeeder::class,
             UcGpsSeeder::class,
             SecretaryMasterSeeder::class,
         ]);

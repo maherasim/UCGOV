@@ -96,6 +96,30 @@
         </tr>
     </table>
 
+    @if($lbrCase->ddlg_observations)
+        <div class="section-header tone-purple">SECTION 5B — DDLG DELAY APPROVAL (OVER 7 YEARS)</div>
+        <div class="callout tone-blue">
+            <b>DDLG Observations</b>
+            {{ $lbrCase->ddlg_observations }}
+        </div>
+        <table class="sig-table">
+            <tr>
+                <td>
+                    <div class="sig-line">
+                        <div class="sig-name">Deputy Director Local Government</div>
+                        <div>Date: _______________</div>
+                    </div>
+                </td>
+                <td>
+                    <div class="sig-line">
+                        <div class="sig-name">Official Stamp / Seal</div>
+                        <div>Date: _______________</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    @endif
+
     <div class="section-header {{ $lbrCase->adlg_observations ? 'tone-green' : '' }}">SECTION 6 — ADLG REVIEW &amp; DECISION</div>
     @if($lbrCase->adlg_observations)
         <table class="kv">
