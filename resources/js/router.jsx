@@ -30,7 +30,9 @@ import AdlgReports from './pages/adlg/Reports';
 import AdlgNewsletters from './pages/adlg/Newsletters';
 import AdlgInquiries from './pages/adlg/Inquiries';
 import AdlgDklic from './pages/adlg/Dklic';
+import AdlgChatbot from './pages/adlg/Chatbot';
 import AdlgLbr from './pages/adlg/Lbr';
+import AdlgLdr from './pages/adlg/Ldr';
 import AdlgProfile from './pages/adlg/Profile';
 
 import DdlgLayout from './layouts/DdlgLayout';
@@ -41,11 +43,13 @@ import DdlgSecretaries from './pages/ddlg/Secretaries';
 import DdlgAdlgs from './pages/ddlg/Adlgs';
 import DdlgCases from './pages/ddlg/Cases';
 import DdlgLbr from './pages/ddlg/Lbr';
+import DdlgLdr from './pages/ddlg/Ldr';
 import DdlgAttendance from './pages/ddlg/Attendance';
 import DdlgReports from './pages/ddlg/Reports';
 import DdlgInquiries from './pages/ddlg/Inquiries';
 import DdlgNewsletters from './pages/ddlg/Newsletters';
 import DdlgDklic from './pages/ddlg/Dklic';
+import DdlgChatbot from './pages/ddlg/Chatbot';
 import DdlgProfile from './pages/ddlg/Profile';
 
 import SecLayout from './layouts/SecLayout';
@@ -54,7 +58,9 @@ import SecAttendance from './pages/sec/Attendance';
 import SecReports from './pages/sec/Reports';
 import SecCases from './pages/sec/Cases';
 import SecLbr from './pages/sec/Lbr';
+import SecLdr from './pages/sec/Ldr';
 import SecDklic from './pages/sec/Dklic';
+import SecChatbot from './pages/sec/Chatbot';
 import SecProfile from './pages/sec/Profile';
 
 const ROLE_HOME = {
@@ -145,10 +151,12 @@ export default function App() {
                 <Route path="secretaries" element={<Secretaries />} />
                 <Route path="cases" element={<Cases />} />
                 <Route path="lbr" element={<AdlgLbr />} />
+                <Route path="ldr" element={<AdlgLdr />} />
                 <Route path="attendance" element={<AdlgAttendance />} />
                 <Route path="reports" element={<AdlgReports />} />
                 <Route path="newsletters" element={<AdlgNewsletters />} />
                 <Route path="dklic" element={<AdlgDklic />} />
+                <Route path="chatbot" element={<AdlgChatbot />} />
                 <Route path="inquiries" element={<AdlgInquiries />} />
                 <Route path="profile" element={<AdlgProfile />} />
             </Route>
@@ -169,10 +177,12 @@ export default function App() {
                 <Route path="adlgs" element={<DdlgAdlgs />} />
                 <Route path="cases" element={<DdlgCases />} />
                 <Route path="lbr" element={<DdlgLbr />} />
+                <Route path="ldr" element={<DdlgLdr />} />
                 <Route path="attendance" element={<DdlgAttendance />} />
                 <Route path="reports" element={<DdlgReports />} />
                 <Route path="newsletters" element={<DdlgNewsletters />} />
                 <Route path="dklic" element={<DdlgDklic />} />
+                <Route path="chatbot" element={<DdlgChatbot />} />
                 <Route path="inquiries" element={<DdlgInquiries />} />
                 <Route path="profile" element={<DdlgProfile />} />
             </Route>
@@ -191,7 +201,9 @@ export default function App() {
                 <Route path="reports" element={<SecReports />} />
                 <Route path="cases" element={<SecCases />} />
                 <Route path="lbr" element={<SecLbr />} />
+                <Route path="ldr" element={<SecLdr />} />
                 <Route path="dklic" element={<SecDklic />} />
+                <Route path="chatbot" element={<SecChatbot />} />
                 <Route path="profile" element={<SecProfile />} />
             </Route>
 

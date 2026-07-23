@@ -13,15 +13,19 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
  * One consistent visual language for every Excel export in the platform — the same
- * brand-green header and the same status-tone palette the app's own <Badge> component
+ * brand header color and the same status-tone palette the app's own <Badge> component
  * uses (success/warning/danger/info), so a report reads as one system whether it's
  * Attendance, LBR, Divorce/Khula cases, or the Audit Log.
  */
 trait StylesExcelSheets
 {
-    protected const XL_PRIMARY = '0B6D3A';
+    protected const XL_PRIMARY = '5F40F5';
 
-    protected const XL_PRIMARY_BG = 'E7F3EC';
+    protected const XL_PRIMARY_BG = 'EEF0FF';
+
+    protected const XL_SUCCESS = '16A34A';
+
+    protected const XL_SUCCESS_BG = 'DCFCE7';
 
     protected const XL_DANGER = 'DC2626';
 
@@ -67,7 +71,7 @@ trait StylesExcelSheets
     protected function xlStatusCell(Worksheet $sheet, string $coord, string $label, string $tone = 'neutral'): void
     {
         [$bg, $font] = match ($tone) {
-            'success' => [self::XL_PRIMARY_BG, self::XL_PRIMARY],
+            'success' => [self::XL_SUCCESS_BG, self::XL_SUCCESS],
             'danger' => [self::XL_DANGER_BG, self::XL_DANGER],
             'warning' => [self::XL_WARNING_BG, self::XL_WARNING],
             'info' => [self::XL_INFO_BG, self::XL_INFO],

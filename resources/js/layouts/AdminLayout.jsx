@@ -126,7 +126,7 @@ export default function AdminLayout() {
             <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">
-                        <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Department Logo" className="h-full w-full object-contain" />
+                        <img src={`${APP_BASE_PATH}/logo.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
                         <div className="text-sm font-bold leading-tight">UC Governance</div>

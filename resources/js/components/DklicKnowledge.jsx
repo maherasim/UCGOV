@@ -27,7 +27,7 @@ const FILTERS = [
     { key: 'recent', label: 'Recent' },
 ];
 
-function AiAssistant({ role }) {
+export function AiAssistant({ role }) {
     const [messages, setMessages] = useState([
         {
             role: 'bot',
@@ -74,7 +74,7 @@ function AiAssistant({ role }) {
                 </div>
             </div>
 
-            <div ref={scrollRef} className="max-h-80 space-y-3 overflow-y-auto p-4">
+            <div ref={scrollRef} className="max-h-[65vh] min-h-[320px] space-y-3 overflow-y-auto p-4">
                 {messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
                         <div
@@ -345,60 +345,54 @@ export default function DklicKnowledge({ role }) {
     });
 
     return (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-10">
-            <div className="lg:col-span-7">
-                <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">🤖 Local Government Chatbot</h2>
-                <AiAssistant role={role} />
+        <div>
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-[200px] flex-1">
+                    <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rules, gazette no., subject, keywords…" />
+                </div>
+                <div className="w-44">
+                    <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                    >
+                        <option value="">All Categories</option>
+                        {CATEGORIES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
-            <div className="lg:col-span-3">
-                <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">📚 Local Government Library</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="min-w-[200px] flex-1">
-                        <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rules, gazette no., subject, keywords…" />
-                    </div>
-                    <div className="w-44">
-                        <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                        >
-                            <option value="">All Categories</option>
-                            {CATEGORIES.map((c) => (
-                                <option key={c} value={c}>{c}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+                {FILTERS.map((f) => (
+                    <button
+                        key={f.key}
+                        onClick={() => setFilter(f.key)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            filter === f.key ? 'border-primary-500 bg-primary-500 text-white' : 'border-border bg-surface text-ink-muted hover:border-primary-200'
+                        }`}
+                    >
+                        {f.label}
+                    </button>
+                ))}
+            </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {FILTERS.map((f) => (
-                        <button
-                            key={f.key}
-                            onClick={() => setFilter(f.key)}
-                            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                filter === f.key ? 'border-primary-500 bg-primary-500 text-white' : 'border-border bg-surface text-ink-muted hover:border-primary-200'
-                            }`}
-                        >
-                            {f.label}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mt-4">
-                    {isLoading ? (
-                        <FullScreenSpinner />
-                    ) : data.length === 0 ? (
-                        <EmptyState icon="📂" title="No documents match the current filters" />
-                    ) : (
-                        <div className="space-y-3">
-                            <SmartRecommendations documents={data} onOpen={setOpenDoc} />
+            <div className="mt-4">
+                {isLoading ? (
+                    <FullScreenSpinner />
+                ) : data.length === 0 ? (
+                    <EmptyState icon="📂" title="No documents match the current filters" />
+                ) : (
+                    <div>
+                        <SmartRecommendations documents={data} onOpen={setOpenDoc} />
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             {data.map((d) => (
                                 <DocumentCard key={d.id} doc={d} role={role} onOpen={setOpenDoc} />
                             ))}
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             <DocumentDetailModal doc={openDoc} role={role} onClose={() => setOpenDoc(null)} />

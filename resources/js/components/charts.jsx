@@ -2,14 +2,17 @@ import { useMemo, useRef, useState } from 'react';
 
 /**
  * Fixed categorical order reused across every chart on the dashboard — mirrors the
- * semantic tones already used by <Badge> (success=primary, info, warning=accent,
- * danger) so a color means the same thing everywhere in the app, not just here.
+ * semantic tones already used by <Badge> (success, info, warning=accent, danger) so
+ * a color means the same thing everywhere in the app, not just here. `primary` is the
+ * brand color (violet, from the platform logo) and is kept distinct from `success`
+ * (green) since they no longer coincide the way the old govt-green theme did.
  * Validated for CVD-safe separation via the dataviz skill's palette checks.
  */
 export const CHART_COLORS = {
-    primary: '#0B6D3A',
-    info: '#2563EB',
-    accent: '#C9A227',
+    primary: '#5F40F5',
+    success: '#16A34A',
+    info: '#0284C7',
+    accent: '#EF66B4',
     danger: '#DC2626',
     ink: '#0F172A',
     inkMuted: '#52616B',

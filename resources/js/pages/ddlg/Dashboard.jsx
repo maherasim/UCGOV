@@ -18,7 +18,7 @@ import SectionHeader from '../../components/SectionHeader';
 import { Card, FullScreenSpinner, KpiCard } from '../../components/ui';
 
 const DISPOSITION_COLORS = {
-    DISPOSED_RECONCILED: CHART_COLORS.primary,
+    DISPOSED_RECONCILED: CHART_COLORS.success,
     DISPOSED_EFFECTIVE: CHART_COLORS.info,
     FILED_NON_RESPONSE: CHART_COLORS.accent,
 };

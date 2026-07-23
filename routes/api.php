@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\DklicKnowledgeController;
 use App\Http\Controllers\Api\DvCaseController;
 use App\Http\Controllers\Api\GeographyController;
 use App\Http\Controllers\Api\InquiryController;
+use App\Http\Controllers\Api\DeathCaseController;
 use App\Http\Controllers\Api\LbrCaseController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\NotificationController;
@@ -161,6 +162,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
         Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequest']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
+
+        Route::get('/death-cases', [DeathCaseController::class, 'indexForAdlg']);
+        Route::get('/death-cases-export', [DeathCaseController::class, 'export']);
+        Route::get('/death-cases/{deathCase}', [DeathCaseController::class, 'showForAdlg']);
+        Route::post('/death-cases/{deathCase}/review', [DeathCaseController::class, 'review']);
+        Route::get('/death-cases/{deathCase}/notesheet', [DeathCaseController::class, 'notesheet']);
     });
 
     Route::middleware('role:ddlg')->prefix('ddlg')->group(function () {
@@ -200,6 +207,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForDdlg']);
         Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequestByDdlg']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
+
+        Route::get('/death-cases', [DeathCaseController::class, 'indexForDdlg']);
+        Route::get('/death-cases-export', [DeathCaseController::class, 'exportForDdlg']);
+        Route::get('/death-cases/{deathCase}', [DeathCaseController::class, 'showForDdlg']);
+        Route::post('/death-cases/{deathCase}/review', [DeathCaseController::class, 'reviewByDdlg']);
+        Route::get('/death-cases/{deathCase}/notesheet', [DeathCaseController::class, 'notesheet']);
     });
 
     Route::middleware('role:sec')->prefix('sec')->group(function () {
@@ -240,5 +253,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lbr-cases/{lbrCase}/complete-application', [LbrCaseController::class, 'completeApplication']);
         Route::post('/lbr-cases/{lbrCase}/register-certificate', [LbrCaseController::class, 'registerCertificate']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
+
+        Route::get('/death-cases', [DeathCaseController::class, 'indexForSecretary']);
+        Route::get('/death-cases/{deathCase}', [DeathCaseController::class, 'showForSecretary']);
+        Route::post('/death-cases', [DeathCaseController::class, 'storeForSecretary']);
+        Route::post('/death-cases/{deathCase}/resubmit', [DeathCaseController::class, 'resubmit']);
+        Route::post('/death-cases/{deathCase}/register-certificate', [DeathCaseController::class, 'registerCertificate']);
+        Route::get('/death-cases/{deathCase}/notesheet', [DeathCaseController::class, 'notesheet']);
     });
 });

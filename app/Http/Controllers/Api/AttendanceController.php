@@ -450,11 +450,19 @@ class AttendanceController extends Controller
         Carbon $to,
         Request $request
     ): void {
+        if ($from->isSameDay($to)) {
+            $this->buildAttendanceSummarySingleDay($sheet, $ucs, $recordsByUc, $from, $request);
+        } else {
+            $this->buildAttendanceSummaryDateWise($sheet, $ucs, $recordsByUc, $from, $to, $request);
+        }
+    }
+
+    /** Single-day filter: one row per UC, Present/Absent + last check-in. */
+    protected function buildAttendanceSummarySingleDay(Worksheet $sheet, $ucs, $recordsByUc, Carbon $from, Request $request): void
+    {
         $sheet->setTitle('UC Summary');
 
-        $periodLabel = $from->isSameDay($to)
-            ? 'Report date: '.$from->toFormattedDateString()
-            : 'Report period: '.$from->toFormattedDateString().' → '.$to->toFormattedDateString();
+        $periodLabel = 'Report date: '.$from->toFormattedDateString();
         if ($request->filled('union_council_id') && $ucs->isNotEmpty()) {
             $periodLabel .= ' · UC filter: '.$ucs->first()->name;
         }
@@ -495,6 +503,80 @@ class AttendanceController extends Controller
 
         $this->xlAutoSize($sheet, ['A', 'B', 'C', 'D', 'E']);
         $this->xlBorderAndFilter($sheet, "A{$headerRow}:E{$headerRow}", "A{$headerRow}:E{$row}", freezeBelowHeader: false);
+    }
+
+    /**
+     * Multi-day filter: a UC × Date matrix, one column per calendar day in the range, so
+     * a reviewer can actually see the day-by-day attendance flow instead of one collapsed
+     * present/absent flag for the whole period (which silently hid which specific days a
+     * secretary missed). A per-day present-count TOTAL row sits at the bottom.
+     */
+    protected function buildAttendanceSummaryDateWise(Worksheet $sheet, $ucs, $recordsByUc, Carbon $from, Carbon $to, Request $request): void
+    {
+        $sheet->setTitle('UC Summary');
+
+        $dates = [];
+        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+            $dates[] = $d->toDateString();
+        }
+
+        $periodLabel = 'Report period: '.$from->toFormattedDateString().' → '.$to->toFormattedDateString().' ('.count($dates).' days)';
+        if ($request->filled('union_council_id') && $ucs->isNotEmpty()) {
+            $periodLabel .= ' · UC filter: '.$ucs->first()->name;
+        }
+        $this->xlTitleBanner($sheet, 'UC Governance Platform — Attendance Summary', $periodLabel, 3 + count($dates));
+
+        $headerRow = 4;
+        $sheet->setCellValue("A{$headerRow}", 'UC No');
+        $sheet->setCellValue("B{$headerRow}", 'UC Name');
+        foreach ($dates as $i => $date) {
+            $sheet->setCellValue([3 + $i, $headerRow], Carbon::parse($date)->format('d M'));
+        }
+        $daysPresentCol = $this->xlColumnLetter(3 + count($dates));
+        $sheet->setCellValue("{$daysPresentCol}{$headerRow}", 'Days Present');
+        $this->xlHeaderRow($sheet, "A{$headerRow}:{$daysPresentCol}{$headerRow}");
+
+        $row = $headerRow + 1;
+        $dailyPresentCounts = array_fill_keys($dates, 0);
+        foreach ($ucs as $uc) {
+            $ucRecords = $recordsByUc->get($uc->id, collect())->keyBy(fn ($r) => $r->attendance_date->toDateString());
+
+            $sheet->setCellValue("A{$row}", $uc->uc_no);
+            $sheet->setCellValue("B{$row}", $uc->name);
+
+            $daysPresent = 0;
+            foreach ($dates as $i => $date) {
+                $col = $this->xlColumnLetter(3 + $i);
+                $record = $ucRecords->get($date);
+                if ($record) {
+                    $daysPresent++;
+                    $dailyPresentCounts[$date]++;
+                    $this->xlStatusCell($sheet, "{$col}{$row}", $record->check_in_time ?: '✓', 'success');
+                } else {
+                    $this->xlStatusCell($sheet, "{$col}{$row}", '—', 'danger');
+                }
+            }
+            $sheet->setCellValue("{$daysPresentCol}{$row}", "{$daysPresent} / ".count($dates));
+
+            $row++;
+        }
+
+        $totalUcs = $ucs->count();
+        $sheet->setCellValue("A{$row}", 'DAILY TOTAL');
+        $sheet->mergeCells("A{$row}:B{$row}");
+        foreach ($dates as $i => $date) {
+            $col = $this->xlColumnLetter(3 + $i);
+            $sheet->setCellValue("{$col}{$row}", "{$dailyPresentCounts[$date]}/{$totalUcs}");
+        }
+        $sheet->getStyle("A{$row}:{$daysPresentCol}{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:{$daysPresentCol}{$row}")->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        $this->xlColumnWidths($sheet, array_merge(
+            ['A' => 10, 'B' => 22],
+            array_fill_keys(array_map(fn ($i) => $this->xlColumnLetter(3 + $i), array_keys($dates)), 11),
+            [$daysPresentCol => 13]
+        ));
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:{$daysPresentCol}{$headerRow}", "A{$headerRow}:{$daysPresentCol}{$row}", freezeBelowHeader: false);
     }
 
     protected function buildAttendanceDetailSheet(Worksheet $sheet, $records): void

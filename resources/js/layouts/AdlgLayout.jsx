@@ -9,7 +9,9 @@ import {
     ClipboardDocumentListIcon,
     NewspaperIcon,
     DocumentTextIcon,
+    ArchiveBoxIcon,
     BookOpenIcon,
+    ChatBubbleLeftRightIcon,
     UserGroupIcon,
     Cog6ToothIcon,
     ChevronDownIcon,
@@ -31,6 +33,7 @@ const NAV_GROUPS = [
         items: [
             { to: 'cases', label: 'Divorce/Khula Cases', icon: ScaleIcon },
             { to: 'lbr', label: 'Birth Registration', icon: UserGroupIcon },
+            { to: 'ldr', label: 'Death Registration', icon: ArchiveBoxIcon },
         ],
     },
     {
@@ -46,7 +49,8 @@ const NAV_GROUPS = [
         label: 'Communications',
         items: [
             { to: 'newsletters', label: 'Newsletters', icon: NewspaperIcon },
-            { to: 'dklic', label: 'Knowledge', icon: BookOpenIcon },
+            { to: 'dklic', label: 'Local Government Library', icon: BookOpenIcon },
+            { to: 'chatbot', label: 'Local Government Chatbot', icon: ChatBubbleLeftRightIcon },
             { to: 'inquiries', label: 'Inquiry', icon: DocumentTextIcon },
         ],
     },
@@ -124,7 +128,7 @@ export default function AdlgLayout() {
             <aside className="flex w-64 flex-shrink-0 flex-col bg-primary-700 text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white p-1">
-                        <img src={`${APP_BASE_PATH}/localgovrment.png`} alt="Department Logo" className="h-full w-full object-contain" />
+                        <img src={`${APP_BASE_PATH}/logo.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
                         <div className="text-sm font-bold leading-snug">Personal Assistant to ADLG for UCs' Management</div>
