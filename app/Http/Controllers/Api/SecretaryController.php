@@ -14,12 +14,17 @@ use App\Models\SecretaryProfile;
 use App\Models\SecretaryUcCharge;
 use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class SecretaryController extends Controller
 {
+    use StylesExcelSheets;
+
     public function index(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -88,6 +93,113 @@ class SecretaryController extends Controller
         $secretary->load(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil']);
 
         return new UserResource($secretary);
+    }
+
+    /**
+     * A "Summary" sheet (active vs. inactive, geofence coverage) plus the full
+     * "Secretaries" detail listing, colored to match the on-screen badges
+     * (Active/Inactive in green/red, geofence warning the same as the UI icon).
+     */
+    public function export(Request $request)
+    {
+        $tehsilId = $request->user()->adlgProfile->tehsil_id;
+
+        $secretaries = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with(['secretaryProfile.unionCouncil', 'secretaryProfile.additionalCharges.unionCouncil'])
+            ->orderBy('name')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Secretaries Report');
+
+        $this->buildSecretarySummarySheet($spreadsheet->getActiveSheet(), $secretaries);
+        $this->buildSecretaryDetailSheet($spreadsheet->createSheet(), $secretaries);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Secretaries_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildSecretarySummarySheet(Worksheet $sheet, $secretaries): void
+    {
+        $sheet->setTitle('Summary');
+
+        $total = $secretaries->count();
+        $active = $secretaries->where('active', true)->count();
+        $inactive = $total - $active;
+        $withCharges = $secretaries->filter(fn ($s) => $s->secretaryProfile?->additionalCharges->isNotEmpty())->count();
+        $noGeofence = $secretaries->filter(function ($s) {
+            $uc = $s->secretaryProfile?->unionCouncil;
+
+            return $uc && ($uc->lat === null || $uc->lng === null);
+        })->count();
+
+        $this->xlTitleBanner($sheet, 'Union Council Management System — Secretaries Summary', "Tehsil overview · {$total} Secretaries", 2);
+
+        $headerRow = 4;
+        foreach (['Metric', 'Value'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:B{$headerRow}");
+
+        $rows = [
+            ['Total Secretaries', (string) $total, 'neutral'],
+            ['Active', (string) $active, 'success'],
+            ['Inactive', (string) $inactive, $inactive > 0 ? 'danger' : 'success'],
+            ['Holding Additional UC Charges', (string) $withCharges, 'info'],
+            ['UC Geofence Not Set', (string) $noGeofence, $noGeofence > 0 ? 'warning' : 'success'],
+        ];
+        $row = $headerRow + 1;
+        foreach ($rows as [$label, $value, $tone]) {
+            $sheet->setCellValue("A{$row}", $label);
+            $this->xlStatusCell($sheet, "B{$row}", $value, $tone);
+            $row++;
+        }
+        $this->xlAutoSize($sheet, ['A', 'B']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:B{$headerRow}", "A{$headerRow}:B".($row - 1), freezeBelowHeader: false);
+    }
+
+    protected function buildSecretaryDetailSheet(Worksheet $sheet, $secretaries): void
+    {
+        $sheet->setTitle('Secretaries');
+
+        $headers = ['Name', 'Username', 'Union Council', "Father's Name", 'CNIC', 'Phone', 'Email', 'Status', 'Geofence', 'Additional Charges', 'Last Login'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, [
+            'A' => 22, 'B' => 20, 'C' => 22, 'D' => 20, 'E' => 16, 'F' => 14,
+            'G' => 24, 'H' => 12, 'I' => 14, 'J' => 30, 'K' => 18,
+        ]);
+
+        $row = 2;
+        foreach ($secretaries as $sec) {
+            $uc = $sec->secretaryProfile?->unionCouncil;
+            $hasGeofence = $uc && $uc->lat !== null && $uc->lng !== null;
+
+            $sheet->setCellValue("A{$row}", $sec->name);
+            $sheet->setCellValue("B{$row}", $sec->username);
+            $sheet->setCellValue("C{$row}", $uc?->name ?? '—');
+            $sheet->setCellValue("D{$row}", $sec->secretaryProfile?->father_name);
+            $sheet->setCellValue("E{$row}", $sec->cnic);
+            $sheet->setCellValue("F{$row}", $sec->phone);
+            $sheet->setCellValue("G{$row}", $sec->email);
+            $this->xlStatusCell($sheet, "H{$row}", $sec->active ? 'Active' : 'Inactive', $sec->active ? 'success' : 'danger');
+            $this->xlStatusCell($sheet, "I{$row}", $uc ? ($hasGeofence ? 'Set' : 'Not set') : '—', $hasGeofence ? 'success' : 'neutral');
+
+            $charges = $sec->secretaryProfile?->additionalCharges->pluck('unionCouncil.name')->filter()->implode(', ');
+            $sheet->setCellValue("J{$row}", $charges ?: '—');
+
+            $sheet->setCellValue("K{$row}", $sec->last_login_at?->toDateString() ?? 'Never');
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
     }
 
     public function store(StoreSecretaryRequest $request)

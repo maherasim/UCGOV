@@ -17,6 +17,7 @@ import {
     TextInput,
     UsernameTag,
 } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import { formatCnic, formatPhone } from '../../utils/format';
 
 const emptyForm = {
@@ -323,7 +324,12 @@ export default function Secretaries() {
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-ink">Secretaries</h1>
-                <Button onClick={() => setFormTarget({})}>+ Create Secretary</Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/secretaries-export`, '_blank')}>
+                        📊 Export Excel
+                    </Button>
+                    <Button onClick={() => setFormTarget({})}>+ Create Secretary</Button>
+                </div>
             </div>
 
             <Card>

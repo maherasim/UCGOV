@@ -106,10 +106,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/ai/ask', [AdlgAiController::class, 'ask']);
 
         Route::get('/union-councils', [UnionCouncilController::class, 'index']);
+        Route::get('/union-councils-export', [UnionCouncilController::class, 'export']);
         Route::post('/union-councils', [UnionCouncilController::class, 'store']);
         Route::put('/union-councils/{unionCouncil}', [UnionCouncilController::class, 'update']);
 
         Route::get('/secretaries', [SecretaryController::class, 'index']);
+        Route::get('/secretaries-export', [SecretaryController::class, 'export']);
         Route::post('/secretaries', [SecretaryController::class, 'store']);
         Route::put('/secretaries/{secretary}', [SecretaryController::class, 'update']);
         Route::patch('/secretaries/{secretary}/toggle-active', [SecretaryController::class, 'toggleActive']);

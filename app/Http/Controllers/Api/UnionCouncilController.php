@@ -8,10 +8,15 @@ use App\Http\Requests\Api\UpdateUnionCouncilRequest;
 use App\Http\Resources\UnionCouncilResource;
 use App\Models\AuditLog;
 use App\Models\UnionCouncil;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class UnionCouncilController extends Controller
 {
+    use StylesExcelSheets;
+
     public function index(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -64,6 +69,104 @@ class UnionCouncilController extends Controller
         $perPage = min($request->integer('per_page', 30), 100);
 
         return UnionCouncilResource::collection($query->orderBy('name')->paginate($perPage));
+    }
+
+    /**
+     * A "Summary" sheet (assigned vs. vacant, geofence coverage) plus the full
+     * "Union Councils" detail listing, colored to match the on-screen badges
+     * (Vacant secretary in amber, geofence Set/Not Set in green/neutral).
+     */
+    public function export(Request $request)
+    {
+        $tehsilId = $request->user()->adlgProfile->tehsil_id;
+
+        $ucs = UnionCouncil::where('tehsil_id', $tehsilId)
+            ->with(['tehsil', 'secretaryProfile.user'])
+            ->orderBy('name')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Union Councils Report');
+
+        $this->buildUcSummarySheet($spreadsheet->getActiveSheet(), $ucs);
+        $this->buildUcDetailSheet($spreadsheet->createSheet(), $ucs);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Union_Councils_'.now()->toDateString().'.xlsx');
+    }
+
+    protected function buildUcSummarySheet(Worksheet $sheet, $ucs): void
+    {
+        $sheet->setTitle('Summary');
+
+        $total = $ucs->count();
+        $assigned = $ucs->filter(fn ($uc) => $uc->secretaryProfile)->count();
+        $vacant = $total - $assigned;
+        $geofenceSet = $ucs->filter(fn ($uc) => $uc->lat !== null && $uc->lng !== null)->count();
+
+        $this->xlTitleBanner($sheet, 'Union Council Management System — Union Councils Summary', "Tehsil overview · {$total} Union Councils", 2);
+
+        $headerRow = 4;
+        foreach (['Metric', 'Value'] as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $this->xlHeaderRow($sheet, "A{$headerRow}:B{$headerRow}");
+
+        $rows = [
+            ['Total Union Councils', (string) $total, 'neutral'],
+            ['Secretary Assigned', (string) $assigned, 'success'],
+            ['Vacant (No Secretary)', (string) $vacant, $vacant > 0 ? 'warning' : 'success'],
+            ['Geofence Configured', (string) $geofenceSet, $geofenceSet === $total ? 'success' : 'warning'],
+            ['Geofence Not Set', (string) ($total - $geofenceSet), $total - $geofenceSet > 0 ? 'danger' : 'success'],
+        ];
+        $row = $headerRow + 1;
+        foreach ($rows as [$label, $value, $tone]) {
+            $sheet->setCellValue("A{$row}", $label);
+            $this->xlStatusCell($sheet, "B{$row}", $value, $tone);
+            $row++;
+        }
+        $this->xlAutoSize($sheet, ['A', 'B']);
+        $this->xlBorderAndFilter($sheet, "A{$headerRow}:B{$headerRow}", "A{$headerRow}:B".($row - 1), freezeBelowHeader: false);
+    }
+
+    protected function buildUcDetailSheet(Worksheet $sheet, $ucs): void
+    {
+        $sheet->setTitle('Union Councils');
+
+        $headers = ['UC No.', 'Name', 'Code', 'Address', 'Secretary', 'Geofence', 'Latitude', 'Longitude', 'Radius (m)'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
+        $this->xlColumnWidths($sheet, ['A' => 10, 'B' => 24, 'C' => 12, 'D' => 30, 'E' => 22, 'F' => 14, 'G' => 12, 'H' => 12, 'I' => 12]);
+
+        $row = 2;
+        foreach ($ucs as $uc) {
+            $sheet->setCellValue("A{$row}", $uc->uc_no);
+            $sheet->setCellValue("B{$row}", $uc->name);
+            $sheet->setCellValue("C{$row}", $uc->code);
+            $sheet->setCellValue("D{$row}", $uc->address);
+
+            if ($uc->secretaryProfile?->user) {
+                $this->xlStatusCell($sheet, "E{$row}", $uc->secretaryProfile->user->name, 'success');
+            } else {
+                $this->xlStatusCell($sheet, "E{$row}", 'Vacant', 'warning');
+            }
+
+            $hasGeofence = $uc->lat !== null && $uc->lng !== null;
+            $this->xlStatusCell($sheet, "F{$row}", $hasGeofence ? "Set · {$uc->geofence_radius}m" : 'Not set', $hasGeofence ? 'success' : 'neutral');
+
+            $sheet->setCellValue("G{$row}", $uc->lat);
+            $sheet->setCellValue("H{$row}", $uc->lng);
+            $sheet->setCellValue("I{$row}", $uc->geofence_radius);
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= 2) {
+            $this->xlBorderAndFilter($sheet, "A1:{$lastCol}1", "A1:{$lastCol}{$lastRow}");
+        }
     }
 
     public function store(StoreUnionCouncilRequest $request)

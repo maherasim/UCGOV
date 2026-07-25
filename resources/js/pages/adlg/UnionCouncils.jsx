@@ -4,6 +4,7 @@ import { MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { Badge, Button, Card, ErrorText, Field, Modal, TextInput } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
 
 const emptyForm = { name: '', uc_no: '', code: '', address: '', lat: '', lng: '', geofence_radius: 150 };
 
@@ -117,7 +118,12 @@ export default function UnionCouncils() {
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-ink">Union Councils</h1>
-                <Button onClick={() => setFormTarget({})}>+ New Union Council</Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/union-councils-export`, '_blank')}>
+                        📊 Export Excel
+                    </Button>
+                    <Button onClick={() => setFormTarget({})}>+ New Union Council</Button>
+                </div>
             </div>
 
             <Card>
