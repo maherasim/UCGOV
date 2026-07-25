@@ -10,21 +10,25 @@ import { Badge, Button, Card, ErrorText, Field, FullScreenSpinner, Modal, Select
 
 const STATUS_TONE = {
     FORWARDED: 'info',
+    PENDING_DDLG_APPROVAL: 'info',
     APPROVED: 'success',
     REJECTED: 'danger',
     RETURNED: 'warning',
     REGISTERED: 'success',
-    PENDING_DELAY_APPROVAL: 'info',
-    DELAY_APPROVED: 'success',
-    DELAY_RETURNED: 'warning',
 };
 
+/**
+ * ADLG's review. For 1–7 years (Rule 4) this IS the final decision. For 7+ years
+ * (Rule 5), ADLG only inquires and recommends — Approve here forwards to DDLG,
+ * it does not register anything, so the order-number field only applies to 1–7.
+ */
 function ReviewModal({ lbrCase, onClose }) {
     const queryClient = useQueryClient();
     const [action, setAction] = useState('');
     const [observations, setObservations] = useState('');
     const [orderNo, setOrderNo] = useState('');
     const [error, setError] = useState('');
+    const isFinal = lbrCase?.category === '1-7';
 
     const close = () => {
         setAction('');
@@ -39,7 +43,7 @@ function ReviewModal({ lbrCase, onClose }) {
             client.post(`/api/adlg/lbr-cases/${lbrCase.id}/review`, {
                 action,
                 observations,
-                order_no: action === 'APPROVED' ? orderNo : undefined,
+                order_no: action === 'APPROVED' && isFinal ? orderNo : undefined,
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adlg-lbr-cases'] });
@@ -50,7 +54,7 @@ function ReviewModal({ lbrCase, onClose }) {
 
     const selectAction = (a) => {
         setAction(a);
-        if (a === 'APPROVED' && !orderNo) {
+        if (a === 'APPROVED' && isFinal && !orderNo) {
             setOrderNo(`LBR-ORD-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`);
         }
     };
@@ -58,10 +62,15 @@ function ReviewModal({ lbrCase, onClose }) {
     return (
         <Modal open={!!lbrCase} onClose={close} title="Review Application" subtitle={lbrCase?.lbr_id}>
             <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
+                {!isFinal && (
+                    <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-info">
+                        Over 7 years requires DDLG's final approval — Approve here forwards it, it does not register the case.
+                    </div>
+                )}
                 <Field label="Decision">
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            ['APPROVED', '✅ Approve', 'border-primary-500 bg-primary-50 text-primary-700'],
+                            ['APPROVED', isFinal ? '✅ Approve' : '➡️ Forward to DDLG', 'border-primary-500 bg-primary-50 text-primary-700'],
                             ['REJECTED', '❌ Reject', 'border-danger bg-red-50 text-danger'],
                             ['RETURNED', '↩️ Return', 'border-accent-500 bg-accent-100 text-accent-700'],
                         ].map(([key, label, activeClass]) => (
@@ -76,7 +85,7 @@ function ReviewModal({ lbrCase, onClose }) {
                         ))}
                     </div>
                 </Field>
-                {action === 'APPROVED' && (
+                {action === 'APPROVED' && isFinal && (
                     <Field label="Order Number">
                         <TextInput value={orderNo} onChange={(e) => setOrderNo(e.target.value)} required />
                     </Field>
@@ -93,68 +102,7 @@ function ReviewModal({ lbrCase, onClose }) {
     );
 }
 
-/**
- * The delay-request decision: no order number here (that's only meaningful for the
- * final APPROVED decision on a complete application) — just Approve/Reject/Return
- * on whether the delay itself is acceptable, posted to review-delay-request.
- */
-function ReviewDelayModal({ lbrCase, onClose }) {
-    const queryClient = useQueryClient();
-    const [action, setAction] = useState('');
-    const [observations, setObservations] = useState('');
-    const [error, setError] = useState('');
-
-    const close = () => {
-        setAction('');
-        setObservations('');
-        setError('');
-        onClose();
-    };
-
-    const mutation = useMutation({
-        mutationFn: () =>
-            client.post(`/api/adlg/lbr-cases/${lbrCase.id}/review-delay-request`, { action, observations }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['adlg-lbr-cases'] });
-            close();
-        },
-        onError: (err) => setError(err.response?.data?.message || 'Could not record decision.'),
-    });
-
-    return (
-        <Modal open={!!lbrCase} onClose={close} title="Review Delay Request" subtitle={lbrCase?.lbr_id}>
-            <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
-                <Field label="Decision">
-                    <div className="grid grid-cols-3 gap-2">
-                        {[
-                            ['APPROVED', '✅ Approve Delay', 'border-primary-500 bg-primary-50 text-primary-700'],
-                            ['REJECTED', '❌ Reject', 'border-danger bg-red-50 text-danger'],
-                            ['RETURNED', '↩️ Return', 'border-accent-500 bg-accent-100 text-accent-700'],
-                        ].map(([key, label, activeClass]) => (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setAction(key)}
-                                className={`rounded-lg border-2 px-2 py-2 text-xs font-semibold ${action === key ? activeClass : 'border-border bg-surface text-ink-muted'}`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                </Field>
-                <Field label="Observations">
-                    <Textarea value={observations} onChange={(e) => setObservations(e.target.value)} placeholder="Required for all decisions…" required />
-                </Field>
-                <ErrorText>{error}</ErrorText>
-                <Button type="submit" className="w-full" disabled={mutation.isPending || !action}>
-                    {mutation.isPending ? 'Saving…' : 'Record Decision'}
-                </Button>
-            </form>
-        </Modal>
-    );
-}
-
-function LbrDetailModal({ lbrCaseId, onClose, onReview, onReviewDelay }) {
+function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
     const [previewDoc, setPreviewDoc] = useState(null);
 
     const { data: c, isLoading } = useQuery({
@@ -173,12 +121,6 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview, onReviewDelay }) {
                         <Badge tone="neutral">{c.category_label}</Badge>
                         <Badge tone={STATUS_TONE[c.status]}>{c.status_label}</Badge>
                     </div>
-
-                    {c.status === 'DELAY_APPROVED' && (
-                        <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
-                            ✅ Delay approved. Awaiting the Secretary to complete the full application and upload documents.
-                        </div>
-                    )}
 
                     <div className="mb-3 rounded-xl bg-surface-subtle p-3">
                         <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Child</div>
@@ -215,11 +157,10 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview, onReviewDelay }) {
 
                     <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
 
-                    {c.adlg_observations && (
-                        <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
-                            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-info">ADLG Observations</div>
-                            <p className="text-xs text-ink">{c.adlg_observations}</p>
-                            {c.adlg_order_no && <p className="mt-1 text-xs font-semibold text-ink">Order No: {c.adlg_order_no}</p>}
+                    {c.ddlg_observations && (
+                        <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
+                            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-accent-600">DDLG Observations</div>
+                            <p className="text-xs text-ink">{c.ddlg_observations}</p>
                         </div>
                     )}
 
@@ -237,11 +178,6 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview, onReviewDelay }) {
                                 Review Decision
                             </Button>
                         )}
-                        {c.status === 'PENDING_DELAY_APPROVAL' && (
-                            <Button className="flex-1" onClick={() => onReviewDelay(c)}>
-                                Review Delay Request
-                            </Button>
-                        )}
                     </div>
                 </div>
             )}
@@ -254,7 +190,6 @@ export default function Lbr() {
 
     const [activeId, setActiveId] = useState(null);
     const [reviewTarget, setReviewTarget] = useState(null);
-    const [reviewDelayTarget, setReviewDelayTarget] = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
 
     const { data, isLoading } = useQuery({
@@ -264,7 +199,7 @@ export default function Lbr() {
 
     if (isLoading) return <FullScreenSpinner />;
 
-    const pendingCount = data.filter((c) => c.status === 'FORWARDED' || c.status === 'PENDING_DELAY_APPROVAL').length;
+    const pendingCount = data.filter((c) => c.status === 'FORWARDED').length;
 
     return (
         <div>
@@ -281,10 +216,8 @@ export default function Lbr() {
                     )}
                     <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-48">
                         <option value="">All statuses</option>
-                        <option value="PENDING_DELAY_APPROVAL">Pending Delay Approval</option>
-                        <option value="DELAY_APPROVED">Delay Approved</option>
-                        <option value="DELAY_RETURNED">Delay Returned</option>
                         <option value="FORWARDED">Forwarded</option>
+                        <option value="PENDING_DDLG_APPROVAL">Pending DDLG Approval</option>
                         <option value="APPROVED">Approved</option>
                         <option value="REJECTED">Rejected</option>
                         <option value="RETURNED">Returned</option>
@@ -339,13 +272,8 @@ export default function Lbr() {
                     setActiveId(null);
                     setReviewTarget(c);
                 }}
-                onReviewDelay={(c) => {
-                    setActiveId(null);
-                    setReviewDelayTarget(c);
-                }}
             />
             <ReviewModal lbrCase={reviewTarget} onClose={() => setReviewTarget(null)} />
-            <ReviewDelayModal lbrCase={reviewDelayTarget} onClose={() => setReviewDelayTarget(null)} />
         </div>
     );
 }

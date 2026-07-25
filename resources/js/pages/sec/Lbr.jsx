@@ -23,13 +23,11 @@ import { formatCnic, formatPhone } from '../../utils/format';
 
 const STATUS_TONE = {
     FORWARDED: 'info',
+    PENDING_DDLG_APPROVAL: 'info',
     APPROVED: 'success',
     REJECTED: 'danger',
     RETURNED: 'warning',
     REGISTERED: 'success',
-    PENDING_DELAY_APPROVAL: 'info',
-    DELAY_APPROVED: 'success',
-    DELAY_RETURNED: 'warning',
 };
 
 const DELAY_REASONS = [
@@ -46,13 +44,13 @@ const DOC_SLOTS = [
     { key: 'cnic', label: 'Applicant CNIC (copy)', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'photo1', label: 'Child Photograph (1st)', required: true, accept: '.jpg,.jpeg,.png' },
     { key: 'photo2', label: 'Child Photograph (2nd)', required: true, accept: '.jpg,.jpeg,.png' },
+    { key: 'forma', label: 'Form A (mandatory)', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'slip', label: 'Hospital Birth Slip', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'vacc', label: 'Vaccination Card', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'bform', label: 'Child B-Form / CNIC / Smart Card / Passport', required: false, accept: '.pdf,.jpg,.jpeg,.png', categoryOnly: '7+' },
-    { key: 'forma', label: 'Form A (mandatory)', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
 ];
 
-const emptyWizard = {
+const emptyForm = {
     category: '1-7',
     dob: '',
     delay_reason: '',
@@ -78,16 +76,81 @@ function ageFromDob(dob) {
     return diffMs / (1000 * 60 * 60 * 24 * 365.25);
 }
 
-function NewLbrWizard({ open, onClose }) {
+function formFromCase(c) {
+    if (!c) return emptyForm;
+    const isOtherReason = !DELAY_REASONS.includes(c.delay_reason);
+    return {
+        category: c.category,
+        dob: c.dob || '',
+        delay_reason: isOtherReason ? 'Other' : c.delay_reason,
+        delay_reason_other: isOtherReason ? c.delay_reason || '' : '',
+        child_name: c.child?.name || '',
+        child_gender: c.child?.gender || '',
+        child_birth_place: c.child?.birth_place || '',
+        child_birth_type: c.child?.birth_type || 'Hospital',
+        child_hospital: c.child?.hospital || '',
+        applicant_name: c.applicant?.name || '',
+        applicant_cnic: c.applicant?.cnic || '',
+        applicant_relation: c.applicant?.relation || 'Father',
+        applicant_father_name: c.applicant?.father_name || '',
+        applicant_mother_name: c.applicant?.mother_name || '',
+        applicant_address: c.applicant?.address || '',
+        applicant_phone: c.applicant?.phone || '',
+        secretary_remarks: c.secretary_remarks || '',
+    };
+}
+
+function NewCaseChooser({ open, onClose, onChoose }) {
+    return (
+        <Modal open={open} onClose={onClose} title="New Birth Registration" subtitle="Select the delay category">
+            <div className="grid grid-cols-1 gap-3">
+                <button
+                    type="button"
+                    onClick={() => onChoose('1-7')}
+                    className="rounded-xl border-2 border-border p-4 text-left transition hover:border-primary-400 hover:bg-primary-50"
+                >
+                    <div className="text-sm font-bold text-ink">1–7 Years</div>
+                    <div className="mt-1 text-xs text-ink-muted">Reviewed and decided directly by ADLG.</div>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onChoose('7+')}
+                    className="rounded-xl border-2 border-border p-4 text-left transition hover:border-primary-400 hover:bg-primary-50"
+                >
+                    <div className="text-sm font-bold text-ink">Over 7 Years</div>
+                    <div className="mt-1 text-xs text-ink-muted">ADLG reviews and forwards to DDLG, who makes the final decision.</div>
+                </button>
+            </div>
+        </Modal>
+    );
+}
+
+/**
+ * One wizard handles new submissions (both categories) AND resubmission after a
+ * RETURNED case — full documents are collected upfront regardless of category
+ * (Rule 4/5 both require the complete document set at application time; there's
+ * no more "delay approval first, documents later" two-stage pattern).
+ */
+function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
     const queryClient = useQueryClient();
+    const isResubmit = !!lbrCase;
     const [step, setStep] = useState(1);
-    const [form, setForm] = useState(emptyWizard);
+    const [form, setForm] = useState(() => formFromCase(lbrCase));
     const [docs, setDocs] = useState({});
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        if (open) {
+            setStep(1);
+            setForm(isResubmit ? formFromCase(lbrCase) : { ...emptyForm, category: initialCategory || '1-7' });
+            setDocs({});
+            setError('');
+        }
+    }, [open, lbrCase, initialCategory, isResubmit]);
+
     const close = () => {
         setStep(1);
-        setForm(emptyWizard);
+        setForm(emptyForm);
         setDocs({});
         setError('');
         onClose();
@@ -109,7 +172,9 @@ function NewLbrWizard({ open, onClose }) {
                 if (docs[slot.key]) formData.append(`documents[${slot.key}]`, docs[slot.key]);
             });
 
-            return client.post('/api/sec/lbr-cases', formData);
+            return isResubmit
+                ? client.post(`/api/sec/lbr-cases/${lbrCase.id}/resubmit`, formData)
+                : client.post('/api/sec/lbr-cases', formData);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sec-lbr-cases'] });
@@ -118,17 +183,18 @@ function NewLbrWizard({ open, onClose }) {
         onError: (err) => setError(err.response?.data?.message || 'Could not submit application.'),
     });
 
-    const step1Valid = form.category && form.dob && age !== null && age >= 1 && age <= 7 && form.delay_reason && (form.delay_reason !== 'Other' || form.delay_reason_other) && form.child_name && form.child_gender && form.child_birth_place;
+    const ageValid = age !== null && (form.category === '1-7' ? age >= 1 && age <= 7 : age > 7);
+    const step1Valid = form.category && form.dob && ageValid && form.delay_reason && (form.delay_reason !== 'Other' || form.delay_reason_other) && form.child_name && form.child_gender && form.child_birth_place;
     const step2Valid =
         form.applicant_name &&
         /^\d{5}-\d{7}-\d{1}$/.test(form.applicant_cnic) &&
         form.applicant_address &&
         form.applicant_father_name &&
         form.applicant_mother_name;
-    const missingRequiredDocs = visibleDocSlots.filter((d) => d.required && !docs[d.key]);
+    const missingRequiredDocs = visibleDocSlots.filter((d) => d.required && !docs[d.key] && !(isResubmit && lbrCase?.documents?.some((doc) => doc.doc_key === d.key)));
 
     return (
-        <Modal open={open} onClose={close} title="New Birth Registration" subtitle={`Step ${step} of 4`}>
+        <Modal open={open} onClose={close} title={isResubmit ? 'Resubmit Birth Registration' : 'New Birth Registration'} subtitle={isResubmit ? lbrCase.lbr_id : `Step ${step} of 4 — ${form.category === '1-7' ? '1–7 Years' : 'Over 7 Years'}`}>
             <div className="mb-5 flex gap-1.5">
                 {[1, 2, 3, 4].map((n) => (
                     <div key={n} className={`h-1 flex-1 rounded-full ${n <= step ? 'bg-primary-500' : 'bg-border'}`} />
@@ -140,11 +206,10 @@ function NewLbrWizard({ open, onClose }) {
                     <Field label="Child's Date of Birth">
                         <TextInput type="date" value={form.dob} onChange={set('dob')} required />
                     </Field>
-                    {form.dob && age !== null && age < 1 && (
-                        <p className="-mt-2 mb-3 text-xs font-medium text-danger">⚠️ Child must be at least 1 year old for delayed registration.</p>
-                    )}
-                    {form.dob && age !== null && age > 7 && (
-                        <p className="-mt-2 mb-3 text-xs font-medium text-danger">⚠️ Child is over 7 years old — close this and use "Over 7 Years" from the New Application menu instead.</p>
+                    {form.dob && age !== null && !ageValid && (
+                        <p className="-mt-2 mb-3 text-xs font-medium text-danger">
+                            ⚠️ Age is {age.toFixed(1)} years — {form.category === '1-7' ? 'this category needs 1–7 years; use "Over 7 Years" instead' : 'this category needs over 7 years; use "1–7 Years" instead'}.
+                        </p>
                     )}
                     <Field label="Reason for Delay">
                         <Select value={form.delay_reason} onChange={set('delay_reason')} required>
@@ -300,306 +365,11 @@ function NewLbrWizard({ open, onClose }) {
                     <div className="flex gap-2">
                         <Button type="button" variant="ghost" onClick={() => setStep(3)}>Back</Button>
                         <Button type="button" className="flex-1" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-                            {mutation.isPending ? 'Submitting…' : '✅ Submit Application'}
+                            {mutation.isPending ? 'Submitting…' : isResubmit ? '↩️ Resubmit to ADLG' : '✅ Submit Application'}
                         </Button>
                     </div>
                 </div>
             )}
-        </Modal>
-    );
-}
-
-function NewCaseChooser({ open, onClose, onChoose }) {
-    return (
-        <Modal open={open} onClose={onClose} title="New Birth Registration" subtitle="Select the delay category">
-            <div className="grid grid-cols-1 gap-3">
-                <button
-                    type="button"
-                    onClick={() => onChoose('1-7')}
-                    className="rounded-xl border-2 border-border p-4 text-left transition hover:border-primary-400 hover:bg-primary-50"
-                >
-                    <div className="text-sm font-bold text-ink">1–7 Years</div>
-                    <div className="mt-1 text-xs text-ink-muted">Standard application — fill full details and upload documents now.</div>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onChoose('7+')}
-                    className="rounded-xl border-2 border-border p-4 text-left transition hover:border-primary-400 hover:bg-primary-50"
-                >
-                    <div className="text-sm font-bold text-ink">Over 7 Years</div>
-                    <div className="mt-1 text-xs text-ink-muted">Requires ADLG's delay approval first. Submit basic info now — documents come after approval.</div>
-                </button>
-            </div>
-        </Modal>
-    );
-}
-
-function emptyDelayForm(lbrCase) {
-    if (!lbrCase) {
-        return {
-            dob: '',
-            delay_reason: '',
-            delay_reason_other: '',
-            child_name: '',
-            child_gender: '',
-            applicant_name: '',
-            applicant_cnic: '',
-            applicant_phone: '',
-            secretary_remarks: '',
-        };
-    }
-    const isOtherReason = !DELAY_REASONS.includes(lbrCase.delay_reason);
-    return {
-        dob: lbrCase.dob || '',
-        delay_reason: isOtherReason ? 'Other' : lbrCase.delay_reason,
-        delay_reason_other: isOtherReason ? lbrCase.delay_reason || '' : '',
-        child_name: lbrCase.child?.name || '',
-        child_gender: lbrCase.child?.gender || '',
-        applicant_name: lbrCase.applicant?.name || '',
-        applicant_cnic: lbrCase.applicant?.cnic || '',
-        applicant_phone: lbrCase.applicant?.phone || '',
-        secretary_remarks: lbrCase.secretary_remarks || '',
-    };
-}
-
-/**
- * Handles both the initial "Over 7 Years" delay request and a resubmission after
- * ADLG returns one for correction — same lightweight field set either way, just a
- * different target endpoint and pre-filled starting values.
- */
-function DelayRequestModal({ open, lbrCase, onClose }) {
-    const queryClient = useQueryClient();
-    const isResubmit = !!lbrCase;
-    const [form, setForm] = useState(() => emptyDelayForm(lbrCase));
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        if (open) {
-            setForm(emptyDelayForm(lbrCase));
-            setError('');
-        }
-    }, [open, lbrCase]);
-
-    const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-    const age = ageFromDob(form.dob);
-    const valid =
-        form.dob &&
-        age !== null &&
-        age >= 7 &&
-        form.delay_reason &&
-        (form.delay_reason !== 'Other' || form.delay_reason_other) &&
-        form.child_name &&
-        form.child_gender &&
-        form.applicant_name &&
-        /^\d{5}-\d{7}-\d{1}$/.test(form.applicant_cnic);
-
-    const mutation = useMutation({
-        mutationFn: () => {
-            const payload = {
-                dob: form.dob,
-                delay_reason: form.delay_reason === 'Other' ? form.delay_reason_other || 'Other' : form.delay_reason,
-                child_name: form.child_name,
-                child_gender: form.child_gender,
-                applicant_name: form.applicant_name,
-                applicant_cnic: form.applicant_cnic,
-                applicant_phone: form.applicant_phone,
-                secretary_remarks: form.secretary_remarks,
-            };
-            return isResubmit
-                ? client.post(`/api/sec/lbr-cases/${lbrCase.id}/resubmit-delay-request`, payload)
-                : client.post('/api/sec/lbr-cases/delay-request', payload);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['sec-lbr-cases'] });
-            onClose();
-        },
-        onError: (err) => setError(err.response?.data?.message || 'Could not submit the delay request.'),
-    });
-
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            title={isResubmit ? 'Resubmit Delay Request' : 'Delay Approval Request'}
-            subtitle="Over 7 Years — basic info only; documents come after ADLG approval"
-        >
-            <Field label="Child's Date of Birth">
-                <TextInput type="date" value={form.dob} onChange={set('dob')} required />
-            </Field>
-            {form.dob && age !== null && age < 7 && (
-                <p className="-mt-2 mb-3 text-xs font-medium text-danger">⚠️ Child is under 7 years — use the standard "1–7 Years" application instead.</p>
-            )}
-            <Field label="Reason for Delay">
-                <Select value={form.delay_reason} onChange={set('delay_reason')} required>
-                    <option value="">Select reason…</option>
-                    {DELAY_REASONS.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                    ))}
-                </Select>
-            </Field>
-            {form.delay_reason === 'Other' && (
-                <Field label="Specify Reason">
-                    <TextInput value={form.delay_reason_other} onChange={set('delay_reason_other')} required />
-                </Field>
-            )}
-            <Field label="Child's Full Name">
-                <TextInput value={form.child_name} onChange={set('child_name')} required />
-            </Field>
-            <Field label="Gender">
-                <div className="flex gap-2">
-                    {['Male', 'Female', 'Other'].map((g) => (
-                        <button
-                            key={g}
-                            type="button"
-                            onClick={() => setForm({ ...form, child_gender: g })}
-                            className={`flex-1 rounded-lg border-2 px-3 py-1.5 text-xs font-semibold ${
-                                form.child_gender === g ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-border bg-surface text-ink-muted'
-                            }`}
-                        >
-                            {g}
-                        </button>
-                    ))}
-                </div>
-            </Field>
-            <Field label="Applicant Full Name">
-                <TextInput value={form.applicant_name} onChange={set('applicant_name')} required />
-            </Field>
-            <Field label="Applicant CNIC">
-                <TextInput
-                    value={form.applicant_cnic}
-                    onChange={(e) => setForm({ ...form, applicant_cnic: formatCnic(e.target.value) })}
-                    placeholder="36602-3534535-7"
-                    required
-                />
-            </Field>
-            <Field label="Applicant Phone (optional)">
-                <TextInput
-                    value={form.applicant_phone}
-                    onChange={(e) => setForm({ ...form, applicant_phone: formatPhone(e.target.value) })}
-                    placeholder="0300-1234567"
-                />
-            </Field>
-            <Field label="Secretary Remarks / Observations (optional)">
-                <Textarea value={form.secretary_remarks} onChange={set('secretary_remarks')} />
-            </Field>
-            <ErrorText>{error}</ErrorText>
-            <Button className="w-full" onClick={() => mutation.mutate()} disabled={!valid || mutation.isPending}>
-                {mutation.isPending ? 'Submitting…' : isResubmit ? '↩️ Resubmit to ADLG' : '📨 Send to ADLG for Delay Approval'}
-            </Button>
-        </Modal>
-    );
-}
-
-const emptyCompleteForm = {
-    child_birth_place: '',
-    child_birth_type: 'Hospital',
-    child_hospital: '',
-    applicant_relation: 'Father',
-    applicant_father_name: '',
-    applicant_mother_name: '',
-    applicant_address: '',
-    secretary_remarks: '',
-};
-
-/**
- * Stage 2 for an over-7-years case: unlocked only after ADLG approves the delay.
- * Collects the remaining details + the standard document set, then forwards the
- * case into the exact same FORWARDED review queue as a normal 1–7 application.
- */
-function CompleteApplicationModal({ lbrCase, onClose }) {
-    const queryClient = useQueryClient();
-    const [form, setForm] = useState(emptyCompleteForm);
-    const [docs, setDocs] = useState({});
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        setForm(emptyCompleteForm);
-        setDocs({});
-        setError('');
-    }, [lbrCase]);
-
-    const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-    const missingRequiredDocs = DOC_SLOTS.filter((d) => d.required && !docs[d.key]);
-    const formValid = form.child_birth_place && form.applicant_address && form.applicant_father_name && form.applicant_mother_name;
-
-    const mutation = useMutation({
-        mutationFn: () => {
-            const formData = new FormData();
-            Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''));
-            DOC_SLOTS.forEach((slot) => {
-                if (docs[slot.key]) formData.append(`documents[${slot.key}]`, docs[slot.key]);
-            });
-            return client.post(`/api/sec/lbr-cases/${lbrCase.id}/complete-application`, formData);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['sec-lbr-cases'] });
-            onClose();
-        },
-        onError: (err) => setError(err.response?.data?.message || 'Could not complete the application.'),
-    });
-
-    return (
-        <Modal open={!!lbrCase} onClose={onClose} title="Complete Application" subtitle={lbrCase?.lbr_id}>
-            <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
-                ✅ Delay approved by ADLG. Fill in the remaining details and upload documents to forward for final review.
-            </div>
-            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Child Details</div>
-            <Field label="Birth Place">
-                <TextInput value={form.child_birth_place} onChange={set('child_birth_place')} required />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-                <Field label="Birth Type">
-                    <Select value={form.child_birth_type} onChange={set('child_birth_type')}>
-                        <option value="Hospital">Hospital</option>
-                        <option value="Home">Home</option>
-                        <option value="Other">Other</option>
-                    </Select>
-                </Field>
-                <Field label="Hospital Name (optional)">
-                    <TextInput value={form.child_hospital} onChange={set('child_hospital')} />
-                </Field>
-            </div>
-
-            <div className="mb-1.5 mt-4 border-t border-border pt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Applicant Details</div>
-            <Field label="Relation to Child">
-                <Select value={form.applicant_relation} onChange={set('applicant_relation')}>
-                    <option value="Father">Father</option>
-                    <option value="Mother">Mother</option>
-                    <option value="Guardian">Guardian</option>
-                    <option value="Self">Self</option>
-                </Select>
-            </Field>
-            <Field label="Address">
-                <TextInput value={form.applicant_address} onChange={set('applicant_address')} required />
-            </Field>
-
-            <div className="mb-1.5 mt-4 border-t border-border pt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Parents Details</div>
-            <div className="grid grid-cols-2 gap-3">
-                <Field label="Father's Name">
-                    <TextInput value={form.applicant_father_name} onChange={set('applicant_father_name')} required />
-                </Field>
-                <Field label="Mother's Name">
-                    <TextInput value={form.applicant_mother_name} onChange={set('applicant_mother_name')} required />
-                </Field>
-            </div>
-
-            <div className="my-3 space-y-3">
-                {DOC_SLOTS.map((slot) => (
-                    <Field key={slot.key} label={slot.label + (slot.required ? '' : ' (optional)')}>
-                        <FileInput value={docs[slot.key] || null} onChange={(file) => setDocs({ ...docs, [slot.key]: file })} accept={slot.accept} />
-                    </Field>
-                ))}
-            </div>
-            <Field label="Secretary Remarks / Observations (optional)">
-                <Textarea value={form.secretary_remarks} onChange={set('secretary_remarks')} />
-            </Field>
-            {missingRequiredDocs.length > 0 && (
-                <p className="mb-2 text-xs text-ink-faint">Mandatory: {missingRequiredDocs.map((d) => d.label).join(', ')}</p>
-            )}
-            <ErrorText>{error}</ErrorText>
-            <Button className="w-full" onClick={() => mutation.mutate()} disabled={!formValid || missingRequiredDocs.length > 0 || mutation.isPending}>
-                {mutation.isPending ? 'Submitting…' : '📤 Forward to ADLG'}
-            </Button>
         </Modal>
     );
 }
@@ -647,7 +417,7 @@ function CertificateModal({ lbrCase, onClose }) {
     );
 }
 
-function LbrDetailModal({ lbrCaseId, onClose, onRegister, onResubmit, onComplete }) {
+function LbrDetailModal({ lbrCaseId, onClose, onRegister, onResubmit }) {
     const [previewDoc, setPreviewDoc] = useState(null);
 
     const { data: c, isLoading } = useQuery({
@@ -670,19 +440,19 @@ function LbrDetailModal({ lbrCaseId, onClose, onRegister, onResubmit, onComplete
                     <div className="mb-2 text-sm font-bold text-ink">{c.child.name} <span className="font-normal text-ink-faint">({c.child.gender})</span></div>
                     <div className="mb-3 text-xs text-ink-muted">Applicant: {c.applicant.name} · {c.applicant.cnic} ({c.applicant.relation})</div>
 
-                    {c.status === 'PENDING_DELAY_APPROVAL' && (
+                    {c.status === 'PENDING_DDLG_APPROVAL' && (
                         <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-info">
-                            ⏳ Awaiting ADLG's decision on the delay approval request.
+                            ⏳ ADLG forwarded this to DDLG for the final decision.
                         </div>
                     )}
-                    {c.status === 'DELAY_APPROVED' && (
-                        <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
-                            ✅ Delay approved. Complete the application below to forward for final review.
-                        </div>
-                    )}
-                    {c.status === 'DELAY_RETURNED' && (
+                    {c.status === 'RETURNED' && (
                         <div className="mb-3 rounded-xl border border-accent-400/30 bg-accent-100 p-3 text-xs text-accent-600">
-                            ↩️ Delay request returned for correction. Review the ADLG's remarks below and resubmit.
+                            ↩️ Returned for correction. Review the remarks below and resubmit.
+                        </div>
+                    )}
+                    {c.status === 'APPROVED' && (
+                        <div className="mb-3 rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
+                            ✅ Approved. Register the certificate below.
                         </div>
                     )}
 
@@ -706,6 +476,14 @@ function LbrDetailModal({ lbrCaseId, onClose, onRegister, onResubmit, onComplete
                             <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-info">ADLG Observations</div>
                             <p className="text-xs text-ink">{c.adlg_observations}</p>
                             {c.adlg_order_no && <p className="mt-1 text-xs font-semibold text-ink">Order No: {c.adlg_order_no}</p>}
+                        </div>
+                    )}
+
+                    {c.ddlg_observations && (
+                        <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3">
+                            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-accent-600">DDLG Observations</div>
+                            <p className="text-xs text-ink">{c.ddlg_observations}</p>
+                            {c.ddlg_order_no && <p className="mt-1 text-xs font-semibold text-ink">Order No: {c.ddlg_order_no}</p>}
                         </div>
                     )}
 
@@ -739,14 +517,9 @@ function LbrDetailModal({ lbrCaseId, onClose, onRegister, onResubmit, onComplete
                                 📜 Register Certificate
                             </Button>
                         )}
-                        {c.status === 'DELAY_RETURNED' && (
+                        {c.status === 'RETURNED' && (
                             <Button className="flex-1" onClick={() => onResubmit(c)}>
-                                ✏️ Resubmit Request
-                            </Button>
-                        )}
-                        {c.status === 'DELAY_APPROVED' && (
-                            <Button className="flex-1" onClick={() => onComplete(c)}>
-                                📝 Complete Application
+                                ✏️ Resubmit
                             </Button>
                         )}
                     </div>
@@ -760,12 +533,10 @@ export default function Lbr() {
     useEffect(() => setLastModule('lbr'), []);
 
     const [chooserOpen, setChooserOpen] = useState(false);
-    const [wizardOpen, setWizardOpen] = useState(false);
-    const [delayOpen, setDelayOpen] = useState(false);
+    const [wizardCategory, setWizardCategory] = useState(null);
     const [activeId, setActiveId] = useState(null);
     const [certTarget, setCertTarget] = useState(null);
     const [resubmitTarget, setResubmitTarget] = useState(null);
-    const [completeTarget, setCompleteTarget] = useState(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['sec-lbr-cases'],
@@ -814,20 +585,18 @@ export default function Lbr() {
                 onClose={() => setChooserOpen(false)}
                 onChoose={(cat) => {
                     setChooserOpen(false);
-                    if (cat === '1-7') setWizardOpen(true);
-                    else setDelayOpen(true);
+                    setWizardCategory(cat);
                 }}
             />
-            <NewLbrWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
-            <DelayRequestModal
-                open={delayOpen || !!resubmitTarget}
+            <LbrWizard
+                open={!!wizardCategory || !!resubmitTarget}
                 lbrCase={resubmitTarget}
+                initialCategory={wizardCategory}
                 onClose={() => {
-                    setDelayOpen(false);
+                    setWizardCategory(null);
                     setResubmitTarget(null);
                 }}
             />
-            <CompleteApplicationModal lbrCase={completeTarget} onClose={() => setCompleteTarget(null)} />
             <LbrDetailModal
                 lbrCaseId={activeId}
                 onClose={() => setActiveId(null)}
@@ -838,10 +607,6 @@ export default function Lbr() {
                 onResubmit={(c) => {
                     setActiveId(null);
                     setResubmitTarget(c);
-                }}
-                onComplete={(c) => {
-                    setActiveId(null);
-                    setCompleteTarget(c);
                 }}
             />
             <CertificateModal lbrCase={certTarget} onClose={() => setCertTarget(null)} />

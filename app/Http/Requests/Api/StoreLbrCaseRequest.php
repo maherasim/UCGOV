@@ -14,7 +14,7 @@ class StoreLbrCaseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category' => ['required', 'in:1-7'],
+            'category' => ['required', 'in:1-7,7+'],
             'dob' => ['required', 'date', 'before:today'],
             'delay_reason' => ['required', 'string', 'max:255'],
 

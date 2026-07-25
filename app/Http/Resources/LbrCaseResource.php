@@ -10,14 +10,11 @@ class LbrCaseResource extends JsonResource
 {
     public const STATUS_LABELS = [
         'FORWARDED' => 'Forwarded to ADLG',
-        'APPROVED' => 'Approved',
+        'PENDING_DDLG_APPROVAL' => 'Pending DDLG Final Approval',
+        'APPROVED' => 'Approved — Ready to Register',
         'REJECTED' => 'Rejected',
         'RETURNED' => 'Returned for Correction',
         'REGISTERED' => 'Birth Registered',
-        'PENDING_DELAY_APPROVAL' => 'Pending ADLG Delay Approval',
-        'PENDING_DDLG_APPROVAL' => 'Pending DDLG Final Approval',
-        'DELAY_APPROVED' => 'Delay Approved — Complete Application',
-        'DELAY_RETURNED' => 'Delay Request Returned',
     ];
 
     public function toArray(Request $request): array
@@ -65,6 +62,7 @@ class LbrCaseResource extends JsonResource
             'adlg_observations' => $this->adlg_observations,
             'adlg_order_no' => $this->adlg_order_no,
             'ddlg_observations' => $this->ddlg_observations,
+            'ddlg_order_no' => $this->ddlg_order_no,
 
             'certificate' => $this->certificate_no ? [
                 'certificate_no' => $this->certificate_no,

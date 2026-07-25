@@ -16,7 +16,7 @@ class ReviewLbrCaseRequest extends FormRequest
         return [
             'action' => ['required', 'in:APPROVED,REJECTED,RETURNED'],
             'observations' => ['required', 'string'],
-            'order_no' => ['nullable', 'string', 'max:255', 'required_if:action,APPROVED'],
+            'order_no' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

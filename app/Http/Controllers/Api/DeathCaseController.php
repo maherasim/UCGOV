@@ -170,8 +170,8 @@ class DeathCaseController extends Controller
 
     /**
      * Secretary corrects and resubmits a RETURNED case (regardless of whether it was
-     * ADLG or DDLG that returned it) — re-enters the pipeline from the top, exactly
-     * like LBR's DELAY_RETURNED → resubmit → PENDING_DELAY_APPROVAL pattern.
+     * ADLG or DDLG that returned it) — re-enters the pipeline from the top, the same
+     * pattern used by LbrCaseController::resubmit().
      */
     public function resubmit(ResubmitDeathCaseRequest $request, DeathCase $deathCase)
     {

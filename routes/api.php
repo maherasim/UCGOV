@@ -160,7 +160,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases-export', [LbrCaseController::class, 'export']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForAdlg']);
         Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'review']);
-        Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequest']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
 
         Route::get('/death-cases', [DeathCaseController::class, 'indexForAdlg']);
@@ -205,7 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForDdlg']);
         Route::get('/lbr-cases-export', [LbrCaseController::class, 'exportForDdlg']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForDdlg']);
-        Route::post('/lbr-cases/{lbrCase}/review-delay-request', [LbrCaseController::class, 'reviewDelayRequestByDdlg']);
+        Route::post('/lbr-cases/{lbrCase}/review', [LbrCaseController::class, 'reviewByDdlg']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
 
         Route::get('/death-cases', [DeathCaseController::class, 'indexForDdlg']);
@@ -248,9 +247,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForSecretary']);
         Route::get('/lbr-cases/{lbrCase}', [LbrCaseController::class, 'showForSecretary']);
         Route::post('/lbr-cases', [LbrCaseController::class, 'storeForSecretary']);
-        Route::post('/lbr-cases/delay-request', [LbrCaseController::class, 'storeDelayRequest']);
-        Route::post('/lbr-cases/{lbrCase}/resubmit-delay-request', [LbrCaseController::class, 'resubmitDelayRequest']);
-        Route::post('/lbr-cases/{lbrCase}/complete-application', [LbrCaseController::class, 'completeApplication']);
+        Route::post('/lbr-cases/{lbrCase}/resubmit', [LbrCaseController::class, 'resubmit']);
         Route::post('/lbr-cases/{lbrCase}/register-certificate', [LbrCaseController::class, 'registerCertificate']);
         Route::get('/lbr-cases/{lbrCase}/notesheet', [LbrCaseController::class, 'notesheet']);
 

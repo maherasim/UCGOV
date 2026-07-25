@@ -97,7 +97,12 @@
     </table>
 
     @if($lbrCase->ddlg_observations)
-        <div class="section-header tone-purple">SECTION 5B — DDLG DELAY APPROVAL (OVER 7 YEARS)</div>
+        <div class="section-header tone-purple">SECTION 5B — DDLG FINAL APPROVAL (OVER 7 YEARS)</div>
+        @if($lbrCase->ddlg_order_no)
+            <table class="kv">
+                <tr><td class="label">Order No.</td><td class="value">{{ $lbrCase->ddlg_order_no }}</td></tr>
+            </table>
+        @endif
         <div class="callout tone-blue">
             <b>DDLG Observations</b>
             {{ $lbrCase->ddlg_observations }}

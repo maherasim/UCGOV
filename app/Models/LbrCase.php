@@ -35,6 +35,7 @@ class LbrCase extends Model
         'adlg_order_no',
         'ddlg_id',
         'ddlg_observations',
+        'ddlg_order_no',
         'certificate_no',
         'certificate_date',
         'certificate_remarks',
