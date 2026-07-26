@@ -56,6 +56,14 @@ class DvCaseResource extends JsonResource
             'is_urgent' => $isActive && $daysRemaining > 0 && $daysRemaining <= 3,
             'attachment_ok' => $this->attachment_ok,
             'attachment_url' => $this->attachment_path ? Storage::disk('public')->url($this->attachment_path) : null,
+            'divorcer_photos' => $this->whenLoaded('partyPhotos', fn () => $this->partyPhotos
+                ->where('party', 'divorcer')
+                ->map(fn ($p) => Storage::disk('public')->url($p->file_path))
+                ->values()),
+            'respondent_photos' => $this->whenLoaded('partyPhotos', fn () => $this->partyPhotos
+                ->where('party', 'respondent')
+                ->map(fn ($p) => Storage::disk('public')->url($p->file_path))
+                ->values()),
             'remarks' => $this->remarks,
             // Note: PHP's `&&` always coerces to bool (unlike JS's value-preserving short-circuit) —
             // ternaries here are required to actually return the array instead of `true`/`false`.
@@ -101,6 +109,8 @@ class DvCaseResource extends JsonResource
                 'pet_statement' => $p->pet_statement,
                 'res_statement' => $p->res_statement,
                 'reconciliation' => $p->reconciliation,
+                'adlg_observation' => $p->adlg_observation,
+                'adlg_direction' => $p->adlg_direction,
                 'adjourned' => $p->adjourned,
                 'adjourn_reason' => $p->adjourn_reason,
                 'next_hearing_date' => $p->next_hearing_date?->toDateString(),

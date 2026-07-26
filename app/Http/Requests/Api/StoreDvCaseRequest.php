@@ -30,6 +30,13 @@ class StoreDvCaseRequest extends FormRequest
             'receipt_date' => ['required', 'date'],
             'attachment' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,doc,docx'],
             'remarks' => ['nullable', 'string'],
+
+            // Party photo galleries — no fixed labels or hard cap on the frontend;
+            // this max:15 is just a server-side abuse guard, not a UX limit.
+            'divorcer_photos' => ['nullable', 'array', 'max:15'],
+            'divorcer_photos.*' => ['file', 'image', 'max:5120'],
+            'respondent_photos' => ['nullable', 'array', 'max:15'],
+            'respondent_photos.*' => ['file', 'image', 'max:5120'],
         ];
     }
 }

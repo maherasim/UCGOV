@@ -2,8 +2,7 @@
 
 @section('content')
     <div class="letterhead">
-        <div class="dept">Bakhtawar Shahzad AI Labs Pvt Ltd.</div>
-        <div class="sub">Union Council Management System</div>
+        <div class="dept">UNION COUNCIL MANAGEMENT SYSTEM</div>
         <div class="sub">Arbitration Council — Union Council {{ $case->unionCouncil->name }}
             @if($case->unionCouncil->tehsil) | Tehsil {{ $case->unionCouncil->tehsil->name }} @endif
         </div>

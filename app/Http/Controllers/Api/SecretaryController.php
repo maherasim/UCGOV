@@ -95,6 +95,45 @@ class SecretaryController extends Controller
         return new UserResource($secretary);
     }
 
+    /** Punjab-wide, for Super Admin. */
+    public function exportForAdmin(Request $request)
+    {
+        $secretaries = User::where('role', 'sec')
+            ->with(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil'])
+            ->orderBy('name')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Secretaries Report');
+
+        $this->buildSecretarySummarySheet($spreadsheet->getActiveSheet(), $secretaries);
+        $this->buildSecretaryDetailSheet($spreadsheet->createSheet(), $secretaries, includeJurisdiction: true);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Secretaries_'.now()->toDateString().'.xlsx');
+    }
+
+    /** Own-district only, for DDLG. */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $secretaries = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['secretaryProfile.unionCouncil.tehsil.district', 'secretaryProfile.additionalCharges.unionCouncil'])
+            ->orderBy('name')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Secretaries Report');
+
+        $this->buildSecretarySummarySheet($spreadsheet->getActiveSheet(), $secretaries);
+        $this->buildSecretaryDetailSheet($spreadsheet->createSheet(), $secretaries, includeJurisdiction: true);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Secretaries_'.now()->toDateString().'.xlsx');
+    }
+
     /**
      * A "Summary" sheet (active vs. inactive, geofence coverage) plus the full
      * "Secretaries" detail listing, colored to match the on-screen badges
@@ -159,40 +198,58 @@ class SecretaryController extends Controller
         $this->xlBorderAndFilter($sheet, "A{$headerRow}:B{$headerRow}", "A{$headerRow}:B".($row - 1), freezeBelowHeader: false);
     }
 
-    protected function buildSecretaryDetailSheet(Worksheet $sheet, $secretaries): void
+    /** $includeJurisdiction adds Tehsil/District columns — see UnionCouncilController's equivalent note. */
+    protected function buildSecretaryDetailSheet(Worksheet $sheet, $secretaries, bool $includeJurisdiction = false): void
     {
         $sheet->setTitle('Secretaries');
 
-        $headers = ['Name', 'Username', 'Union Council', "Father's Name", 'CNIC', 'Phone', 'Email', 'Status', 'Geofence', 'Additional Charges', 'Last Login'];
+        $headers = ['Name', 'Username', 'Union Council'];
+        if ($includeJurisdiction) {
+            $headers[] = 'Tehsil';
+            $headers[] = 'District';
+        }
+        array_push($headers, "Father's Name", 'CNIC', 'Phone', 'Email', 'Status', 'Geofence', 'Additional Charges', 'Last Login');
+
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
         $lastCol = $this->xlColumnLetter(count($headers));
         $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
-        $this->xlColumnWidths($sheet, [
-            'A' => 22, 'B' => 20, 'C' => 22, 'D' => 20, 'E' => 16, 'F' => 14,
-            'G' => 24, 'H' => 12, 'I' => 14, 'J' => 30, 'K' => 18,
-        ]);
+
+        $widths = ['A' => 22, 'B' => 20, 'C' => 22];
+        if ($includeJurisdiction) {
+            $widths += ['D' => 18, 'E' => 18, 'F' => 20, 'G' => 16, 'H' => 14, 'I' => 24, 'J' => 12, 'K' => 14, 'L' => 30, 'M' => 18];
+        } else {
+            $widths += ['D' => 20, 'E' => 16, 'F' => 14, 'G' => 24, 'H' => 12, 'I' => 14, 'J' => 30, 'K' => 18];
+        }
+        $this->xlColumnWidths($sheet, $widths);
 
         $row = 2;
         foreach ($secretaries as $sec) {
             $uc = $sec->secretaryProfile?->unionCouncil;
             $hasGeofence = $uc && $uc->lat !== null && $uc->lng !== null;
 
-            $sheet->setCellValue("A{$row}", $sec->name);
-            $sheet->setCellValue("B{$row}", $sec->username);
-            $sheet->setCellValue("C{$row}", $uc?->name ?? '—');
-            $sheet->setCellValue("D{$row}", $sec->secretaryProfile?->father_name);
-            $sheet->setCellValue("E{$row}", $sec->cnic);
-            $sheet->setCellValue("F{$row}", $sec->phone);
-            $sheet->setCellValue("G{$row}", $sec->email);
-            $this->xlStatusCell($sheet, "H{$row}", $sec->active ? 'Active' : 'Inactive', $sec->active ? 'success' : 'danger');
-            $this->xlStatusCell($sheet, "I{$row}", $uc ? ($hasGeofence ? 'Set' : 'Not set') : '—', $hasGeofence ? 'success' : 'neutral');
+            $col = 'A';
+            $sheet->setCellValue($col++.$row, $sec->name);
+            $sheet->setCellValue($col++.$row, $sec->username);
+            $sheet->setCellValue($col++.$row, $uc?->name ?? '—');
+
+            if ($includeJurisdiction) {
+                $sheet->setCellValue($col++.$row, $uc?->tehsil?->name);
+                $sheet->setCellValue($col++.$row, $uc?->tehsil?->district?->name);
+            }
+
+            $sheet->setCellValue($col++.$row, $sec->secretaryProfile?->father_name);
+            $sheet->setCellValue($col++.$row, $sec->cnic);
+            $sheet->setCellValue($col++.$row, $sec->phone);
+            $sheet->setCellValue($col++.$row, $sec->email);
+            $this->xlStatusCell($sheet, $col++.$row, $sec->active ? 'Active' : 'Inactive', $sec->active ? 'success' : 'danger');
+            $this->xlStatusCell($sheet, $col++.$row, $uc ? ($hasGeofence ? 'Set' : 'Not set') : '—', $hasGeofence ? 'success' : 'neutral');
 
             $charges = $sec->secretaryProfile?->additionalCharges->pluck('unionCouncil.name')->filter()->implode(', ');
-            $sheet->setCellValue("J{$row}", $charges ?: '—');
+            $sheet->setCellValue($col++.$row, $charges ?: '—');
 
-            $sheet->setCellValue("K{$row}", $sec->last_login_at?->toDateString() ?? 'Never');
+            $sheet->setCellValue($col++.$row, $sec->last_login_at?->toDateString() ?? 'Never');
             $row++;
         }
 

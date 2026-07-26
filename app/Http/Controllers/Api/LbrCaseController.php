@@ -43,7 +43,12 @@ class LbrCaseController extends Controller
         'photo1' => 'Child Photograph (1st)',
         'photo2' => 'Child Photograph (2nd)',
         'forma' => 'Form A',
+        'newspaper_notice' => 'Newspaper Advertisement / Publication Notice',
+        'stamp_paper' => 'Stamp Paper (Affidavit)',
     ];
+
+    /** Mandatory only for the over-7-years category (Rule 5's publication-notice requirement). */
+    public const DOC_KEYS_7PLUS_ONLY = ['newspaper_notice', 'stamp_paper'];
 
     protected function relations(): array
     {
@@ -139,6 +144,23 @@ class LbrCaseController extends Controller
                     ['label' => $label, 'file_path' => $path, 'uploaded_at' => now()]
                 );
             }
+        }
+
+        // "+ Add Additional Document" — any number of extra uploads with a free-text
+        // label the secretary supplies (e.g. School Certificate, NADRA Slip), keyed
+        // by whatever the frontend generates (extra_1, extra_2, ...). doc_key is a
+        // plain string column, so these coexist with the fixed DOC_LABELS set above.
+        foreach ($request->file('documents', []) as $key => $file) {
+            if (array_key_exists($key, self::DOC_LABELS) || ! $file) {
+                continue;
+            }
+
+            $label = $request->input("extra_labels.{$key}") ?: 'Additional Document';
+            $path = $file->store('lbr-documents', 'public');
+            LbrDocument::updateOrCreate(
+                ['lbr_case_id' => $case->id, 'doc_key' => $key],
+                ['label' => $label, 'file_path' => $path, 'uploaded_at' => now()]
+            );
         }
     }
 
@@ -266,15 +288,18 @@ class LbrCaseController extends Controller
     }
 
     /**
-     * Read-only, own-district view for DDLG — the full LBR registry across every
-     * tehsil in their district, for browsing/oversight. The one action DDLG can take
-     * is reviewByDdlg(), gated separately to PENDING_DDLG_APPROVAL cases.
+     * Read-only, own-district view for DDLG — over-7-years LBR cases only, across
+     * every tehsil in their district. 1–7 year cases belong entirely to the ADLG
+     * tier (Rule 4 — no DDLG involvement at all) and must never enter this queue,
+     * so the category filter is applied at the query level, not just hidden in
+     * the UI — see authorizeOwnDistrict() for the matching single-record gate.
      */
     public function indexForDdlg(Request $request)
     {
         $districtId = $request->user()->ddlgProfile->district_id;
 
-        $query = LbrCase::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+        $query = LbrCase::where('category', '7+')
+            ->whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
             ->with(['unionCouncil.tehsil', 'secretary', 'adlg']);
 
         if ($request->filled('status')) {
@@ -489,7 +514,8 @@ class LbrCaseController extends Controller
     {
         $districtId = $request->user()->ddlgProfile->district_id;
 
-        $query = LbrCase::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+        $query = LbrCase::where('category', '7+')
+            ->whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
             ->with(['unionCouncil.tehsil', 'secretary', 'adlg', 'documents', 'timeline.actor']);
 
         if ($request->filled('status')) {
@@ -665,9 +691,16 @@ class LbrCaseController extends Controller
         abort_unless($lbrCase->unionCouncil->tehsil_id === $tehsilId, 403);
     }
 
+    /**
+     * Single gate for every DDLG single-case action (showForDdlg, notesheet,
+     * reviewByDdlg) — besides district ownership, a 1–7 year case is never
+     * within DDLG's remit at all (Rule 4 has no DDLG step), so it's blocked here
+     * even for a direct request to its ID, not just filtered out of the list.
+     */
     protected function authorizeOwnDistrict(Request $request, LbrCase $lbrCase): void
     {
         $districtId = $request->user()->ddlgProfile->district_id;
         abort_unless($lbrCase->unionCouncil->tehsil->district_id === $districtId, 403);
+        abort_unless($lbrCase->category === '7+', 403, 'DDLG does not have access to 1–7 year birth registration cases.');
     }
 }

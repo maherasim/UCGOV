@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EyeIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
-import { Badge, Card, EmptyState, Modal, Pagination, Spinner, TextInput, UsernameTag } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, Modal, Pagination, Spinner, TextInput, UsernameTag } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import { formatCnic, formatPhone } from '../../utils/format';
 
 function SecretaryDetailModal({ secretaryId, onClose }) {
@@ -117,6 +118,9 @@ export default function Secretaries() {
                     <h1 className="text-xl font-bold text-ink">Secretaries</h1>
                     <p className="text-sm text-ink-muted">Every Union Council Secretary across Punjab{meta ? ` · ${meta.total} total` : ''}.</p>
                 </div>
+                <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/admin/secretaries-export`, '_blank')}>
+                    📊 Export Excel
+                </Button>
             </div>
 
             <div className="relative mb-4 max-w-sm">

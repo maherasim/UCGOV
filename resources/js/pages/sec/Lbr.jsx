@@ -30,6 +30,18 @@ const STATUS_TONE = {
     REGISTERED: 'success',
 };
 
+/**
+ * Quick-insert templates for the Secretary Remarks field — a plain array so
+ * adding another template later is a one-line change, not a redesign. The
+ * inserted text is always editable afterward; nothing here is auto-saved verbatim.
+ */
+const REMARKS_TEMPLATES = [
+    {
+        label: 'Standard approval remarks',
+        text: 'Record of the UC has duly been checked. The child is not registered, therefore it is requested to approve this case as all legal formalities have been fulfilled. This case is fit for approval please.',
+    },
+];
+
 const DELAY_REASONS = [
     'Unawareness of registration law',
     'Hospital / facility not registered',
@@ -48,6 +60,8 @@ const DOC_SLOTS = [
     { key: 'slip', label: 'Hospital Birth Slip', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'vacc', label: 'Vaccination Card', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'bform', label: 'Child B-Form / CNIC / Smart Card / Passport', required: false, accept: '.pdf,.jpg,.jpeg,.png', categoryOnly: '7+' },
+    { key: 'newspaper_notice', label: 'Newspaper Advertisement / Publication Notice', required: true, accept: '.pdf,.jpg,.jpeg,.png', categoryOnly: '7+' },
+    { key: 'stamp_paper', label: 'Stamp Paper (Affidavit)', required: true, accept: '.pdf,.jpg,.jpeg,.png', categoryOnly: '7+' },
 ];
 
 const emptyForm = {
@@ -137,6 +151,7 @@ function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(() => formFromCase(lbrCase));
     const [docs, setDocs] = useState({});
+    const [extraDocs, setExtraDocs] = useState([]);
     const [error, setError] = useState('');
 
     useEffect(() => {
@@ -144,6 +159,7 @@ function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
             setStep(1);
             setForm(isResubmit ? formFromCase(lbrCase) : { ...emptyForm, category: initialCategory || '1-7' });
             setDocs({});
+            setExtraDocs([]);
             setError('');
         }
     }, [open, lbrCase, initialCategory, isResubmit]);
@@ -152,6 +168,7 @@ function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
         setStep(1);
         setForm(emptyForm);
         setDocs({});
+        setExtraDocs([]);
         setError('');
         onClose();
     };
@@ -170,6 +187,12 @@ function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
             if (form.delay_reason === 'Other') formData.set('delay_reason', form.delay_reason_other || 'Other');
             visibleDocSlots.forEach((slot) => {
                 if (docs[slot.key]) formData.append(`documents[${slot.key}]`, docs[slot.key]);
+            });
+            extraDocs.forEach((d) => {
+                if (d.file && d.label.trim()) {
+                    formData.append(`documents[extra_${d.id}]`, d.file);
+                    formData.append(`extra_labels[extra_${d.id}]`, d.label.trim());
+                }
             });
 
             return isResubmit
@@ -329,7 +352,62 @@ function LbrWizard({ open, lbrCase, initialCategory, onClose }) {
                             </Field>
                         ))}
                     </div>
+
+                    {extraDocs.length > 0 && (
+                        <div className="my-3 space-y-3 border-t border-border pt-3">
+                            {extraDocs.map((d) => (
+                                <div key={d.id} className="rounded-lg border border-border p-2.5">
+                                    <div className="mb-1.5 flex items-center gap-2">
+                                        <TextInput
+                                            placeholder="Document label (e.g. School Certificate)"
+                                            value={d.label}
+                                            onChange={(e) => setExtraDocs(extraDocs.map((x) => (x.id === d.id ? { ...x, label: e.target.value } : x)))}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setExtraDocs(extraDocs.filter((x) => x.id !== d.id))}
+                                            className="flex-shrink-0 rounded-lg px-2 py-1.5 text-ink-muted hover:bg-surface-subtle hover:text-danger"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <FileInput
+                                        value={d.file}
+                                        onChange={(file) => setExtraDocs(extraDocs.map((x) => (x.id === d.id ? { ...x, file } : x)))}
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setExtraDocs([...extraDocs, { id: Date.now(), label: '', file: null }])}
+                        className="mb-3 text-xs font-semibold text-primary-600 hover:underline"
+                    >
+                        + Add Additional Document
+                    </button>
+
                     <Field label="Secretary Remarks / Observations (optional)">
+                        <div className="mb-1.5 flex justify-end">
+                            <Select
+                                value=""
+                                className="w-auto text-xs"
+                                onChange={(e) => {
+                                    const template = REMARKS_TEMPLATES.find((t) => t.label === e.target.value);
+                                    if (!template) return;
+                                    setForm({
+                                        ...form,
+                                        secretary_remarks: form.secretary_remarks ? `${form.secretary_remarks} ${template.text}` : template.text,
+                                    });
+                                }}
+                            >
+                                <option value="">✨ Insert template…</option>
+                                {REMARKS_TEMPLATES.map((t) => (
+                                    <option key={t.label} value={t.label}>{t.label}</option>
+                                ))}
+                            </Select>
+                        </div>
                         <Textarea value={form.secretary_remarks} onChange={set('secretary_remarks')} />
                     </Field>
                     <div className="flex gap-2">

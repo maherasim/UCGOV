@@ -88,4 +88,9 @@ class DvCase extends Model
     {
         return $this->hasMany(CaseNotification::class);
     }
+
+    public function partyPhotos(): HasMany
+    {
+        return $this->hasMany(DvCasePartyPhoto::class);
+    }
 }

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
-import { Badge, Card, EmptyState, Pagination, Spinner, TextInput, Modal } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, Pagination, Spinner, TextInput, Modal } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
 
 function UnionCouncilDetailModal({ uc, onClose }) {
     if (!uc) return null;
@@ -78,6 +79,9 @@ export default function UnionCouncils() {
                     <h1 className="text-xl font-bold text-ink">Union Councils</h1>
                     <p className="text-sm text-ink-muted">Every Union Council across Punjab, A–Z{meta ? ` · ${meta.total} total` : ''}.</p>
                 </div>
+                <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/admin/union-councils-export`, '_blank')}>
+                    📊 Export Excel
+                </Button>
             </div>
 
             <div className="relative mb-4 max-w-sm">

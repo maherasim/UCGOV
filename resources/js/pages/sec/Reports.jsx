@@ -200,6 +200,7 @@ function DailyReportTab() {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
     const [customFields, setCustomFields] = useState([]);
+    const [fieldResponses, setFieldResponses] = useState({});
     const [attachment, setAttachment] = useState(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -207,6 +208,11 @@ function DailyReportTab() {
     const { data, isLoading } = useQuery({
         queryKey: ['sec-reports'],
         queryFn: () => client.get('/api/sec/reports').then((r) => r.data.data),
+    });
+
+    const { data: adlgFields } = useQuery({
+        queryKey: ['sec-report-fields'],
+        queryFn: () => client.get('/api/sec/report-fields').then((r) => r.data.data),
     });
 
     const today = new Date().toISOString().slice(0, 10);
@@ -222,6 +228,10 @@ function DailyReportTab() {
                     formData.append(`custom_fields[${i}][label]`, f.label);
                     formData.append(`custom_fields[${i}][value]`, f.value);
                 });
+            Object.entries(fieldResponses).forEach(([fieldId, value], i) => {
+                formData.append(`field_responses[${i}][field_definition_id]`, fieldId);
+                formData.append(`field_responses[${i}][value]`, value);
+            });
             if (attachment) formData.append('attachment', attachment);
             return client.post('/api/sec/reports', formData);
         },
@@ -229,6 +239,7 @@ function DailyReportTab() {
             queryClient.invalidateQueries({ queryKey: ['sec-reports'] });
             setForm(emptyForm);
             setCustomFields([]);
+            setFieldResponses({});
             setAttachment(null);
             setSuccess(true);
         },
@@ -274,6 +285,24 @@ function DailyReportTab() {
                                     required
                                 />
                             </Field>
+
+                            {adlgFields?.length > 0 && (
+                                <div className="mb-4">
+                                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                                        Requested by ADLG
+                                    </span>
+                                    <div className="space-y-2">
+                                        {adlgFields.map((f) => (
+                                            <Field key={f.id} label={f.label}>
+                                                <TextInput
+                                                    value={fieldResponses[f.id] || ''}
+                                                    onChange={(e) => setFieldResponses({ ...fieldResponses, [f.id]: e.target.value })}
+                                                />
+                                            </Field>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mb-4">
                                 <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">

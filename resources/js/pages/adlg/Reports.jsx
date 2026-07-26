@@ -261,6 +261,77 @@ function PerformasTab() {
     );
 }
 
+/**
+ * ADLG defines standing fields here (e.g. "Vaccination Count") — once added, it
+ * shows up on every secretary's daily report form in this tehsil for them to
+ * answer, alongside their own ad-hoc fields, until deactivated here.
+ */
+function ManageReportFieldsModal({ open, onClose }) {
+    const queryClient = useQueryClient();
+    const [label, setLabel] = useState('');
+    const [error, setError] = useState('');
+
+    const { data, isLoading } = useQuery({
+        queryKey: ['adlg-report-fields'],
+        queryFn: () => client.get('/api/adlg/report-fields').then((r) => r.data.data),
+        enabled: open,
+    });
+
+    const addMutation = useMutation({
+        mutationFn: () => client.post('/api/adlg/report-fields', { label }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adlg-report-fields'] });
+            setLabel('');
+            setError('');
+        },
+        onError: (err) => setError(err.response?.data?.message || 'Could not add field.'),
+    });
+
+    const toggleMutation = useMutation({
+        mutationFn: (id) => client.patch(`/api/adlg/report-fields/${id}/toggle-active`),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['adlg-report-fields'] }),
+    });
+
+    return (
+        <Modal open={open} onClose={onClose} title="Manage Additional Fields" subtitle="Shown on every secretary's daily report form in your tehsil">
+            <form
+                className="mb-4 flex gap-2"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    if (label.trim()) addMutation.mutate();
+                }}
+            >
+                <TextInput placeholder="e.g. Vaccination Count" value={label} onChange={(e) => setLabel(e.target.value)} />
+                <Button type="submit" disabled={!label.trim() || addMutation.isPending} className="flex-shrink-0">
+                    + Add Field
+                </Button>
+            </form>
+            <ErrorText>{error}</ErrorText>
+
+            {isLoading ? (
+                <p className="py-4 text-center text-sm text-ink-muted">Loading…</p>
+            ) : data.length === 0 ? (
+                <p className="py-4 text-center text-sm text-ink-muted">No additional fields defined yet.</p>
+            ) : (
+                <ul className="space-y-2">
+                    {data.map((f) => (
+                        <li key={f.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                            <span className={`text-sm font-medium ${f.active ? 'text-ink' : 'text-ink-faint line-through'}`}>{f.label}</span>
+                            <button
+                                onClick={() => toggleMutation.mutate(f.id)}
+                                disabled={toggleMutation.isPending}
+                                className="flex-shrink-0"
+                            >
+                                <Badge tone={f.active ? 'success' : 'neutral'}>{f.active ? 'Active' : 'Inactive'}</Badge>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Modal>
+    );
+}
+
 function ReportDetailModal({ report, onClose, onMarkReviewed }) {
     return (
         <Modal open={!!report} onClose={onClose} title={report?.report_date} subtitle={report ? `${report.secretary} · ${report.union_council}` : ''}>
@@ -328,6 +399,7 @@ function ReportDetailModal({ report, onClose, onMarkReviewed }) {
 function DailyReportsTab() {
     const queryClient = useQueryClient();
     const [viewing, setViewing] = useState(null);
+    const [managingFields, setManagingFields] = useState(false);
 
     const { data, isLoading } = useQuery({
         queryKey: ['adlg-reports'],
@@ -346,11 +418,15 @@ function DailyReportsTab() {
 
     return (
         <div>
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setManagingFields(true)}>
+                    ⚙️ Manage Additional Fields
+                </Button>
                 <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/adlg/reports/export`, '_blank')}>
                     📊 Export Excel
                 </Button>
             </div>
+            <ManageReportFieldsModal open={managingFields} onClose={() => setManagingFields(false)} />
             <Card>
                 <DataTable
                     data={data}

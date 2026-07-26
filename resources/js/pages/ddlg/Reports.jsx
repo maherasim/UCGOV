@@ -94,6 +94,7 @@ export default function Reports() {
                     data={data}
                     columns={[
                         { title: 'Date', data: 'report_date' },
+                        { title: 'Tehsil', data: 'tehsil', defaultContent: '—' },
                         { title: 'Secretary', data: 'secretary' },
                         { title: 'UC', data: 'union_council' },
                         { title: 'Nikah', data: 'nikah_count' },
@@ -104,8 +105,8 @@ export default function Reports() {
                         { title: '', data: null, orderable: false, searchable: false, className: 'text-right' },
                     ]}
                     slots={{
-                        7: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
-                        8: (data, row) => (
+                        8: (data) => <Badge tone={data ? 'success' : 'warning'}>{data ? 'Reviewed' : 'Pending'}</Badge>,
+                        9: (data, row) => (
                             <div className="flex justify-end">
                                 <button
                                     onClick={() => setViewing(row)}

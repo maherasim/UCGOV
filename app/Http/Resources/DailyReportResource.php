@@ -14,6 +14,10 @@ class DailyReportResource extends JsonResource
             'id' => $this->id,
             'secretary' => $this->whenLoaded('secretary', fn () => $this->secretary->name),
             'union_council' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->name),
+            'tehsil' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') ? $this->unionCouncil->tehsil?->name : null),
+            'district' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') && $this->unionCouncil->tehsil?->relationLoaded('district')
+                ? $this->unionCouncil->tehsil->district?->name
+                : null),
             'report_date' => $this->report_date?->toDateString(),
             'remarks' => $this->remarks,
             'nikah_count' => $this->nikah_count,

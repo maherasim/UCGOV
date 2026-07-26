@@ -2,8 +2,7 @@
 
 @section('content')
     <div class="letterhead">
-        <div class="dept">Bakhtawar Shahzad AI Labs Pvt Ltd.</div>
-        <div class="sub">Union Council Management System</div>
+        <div class="dept">UNION COUNCIL MANAGEMENT SYSTEM</div>
         <div class="sub">Union Council {{ $lbrCase->unionCouncil->name }}
             @if($lbrCase->unionCouncil->tehsil) | Tehsil {{ $lbrCase->unionCouncil->tehsil->name }} @endif
         </div>
@@ -63,7 +62,7 @@
         <tr><th style="width: 8%;">Status</th><th>Document</th><th style="width: 16%;">Requirement</th><th style="width: 20%;">Uploaded</th></tr>
         @foreach($docLabels as $key => $label)
             @php($doc = $lbrCase->documents->firstWhere('doc_key', $key))
-            @php($mandatory = in_array($key, ['cnic', 'photo1', 'photo2', 'forma'], true))
+            @php($mandatory = in_array($key, ['cnic', 'photo1', 'photo2', 'forma'], true) || (in_array($key, ['newspaper_notice', 'stamp_paper'], true) && $lbrCase->category === '7+'))
             <tr>
                 <td>
                     @if($doc)
@@ -78,6 +77,21 @@
             </tr>
         @endforeach
     </table>
+
+    @php($extraDocs = $lbrCase->documents->whereNotIn('doc_key', array_keys($docLabels)))
+    @if($extraDocs->isNotEmpty())
+        <div class="section-header tone-navy">SECTION 4B — ADDITIONAL DOCUMENTS</div>
+        <table class="doc-checklist">
+            <tr><th style="width: 8%;">Status</th><th>Document</th><th style="width: 20%;">Uploaded</th></tr>
+            @foreach($extraDocs as $doc)
+                <tr>
+                    <td><span class="badge badge-green">UPLOADED</span></td>
+                    <td>{{ $doc->label }}</td>
+                    <td>{{ $doc->uploaded_at->format('d M Y') }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
 
     <div class="section-header">SECTION 5 — SECRETARY UC VERIFICATION</div>
     <table class="kv">

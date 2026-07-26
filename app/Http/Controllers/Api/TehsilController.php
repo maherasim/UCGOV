@@ -8,11 +8,16 @@ use App\Http\Requests\Api\UpdateTehsilRequest;
 use App\Http\Resources\TehsilResource;
 use App\Models\AuditLog;
 use App\Models\Tehsil;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class TehsilController extends Controller
 {
+    use StylesExcelSheets;
+
     public function index(Request $request)
     {
         $query = Tehsil::with('district.division')->withCount('unionCouncils');
@@ -44,6 +49,65 @@ class TehsilController extends Controller
             ->get();
 
         return TehsilResource::collection($tehsils);
+    }
+
+    /** Punjab-wide, for Super Admin. */
+    public function export(Request $request)
+    {
+        $tehsils = Tehsil::with('district.division')->withCount('unionCouncils')->orderBy('name')->get();
+
+        return $this->buildTehsilWorkbook($tehsils, 'Punjab-wide');
+    }
+
+    /** Own-district only, for DDLG. */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $tehsils = Tehsil::where('district_id', $districtId)
+            ->with('district.division')
+            ->withCount('unionCouncils')
+            ->orderBy('name')
+            ->get();
+
+        return $this->buildTehsilWorkbook($tehsils, 'District');
+    }
+
+    protected function buildTehsilWorkbook($tehsils, string $scope)
+    {
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Tehsils Report');
+
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Tehsils');
+        $this->xlTitleBanner($sheet, 'Union Council Management System — Tehsils', "{$scope} · {$tehsils->count()} Tehsils", 6);
+
+        $headers = ['Tehsil', 'District', 'Division', 'Union Councils', 'ADLG Assigned', 'Created'];
+        $headerRow = 4;
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A{$headerRow}:{$lastCol}{$headerRow}");
+        $this->xlColumnWidths($sheet, ['A' => 20, 'B' => 20, 'C' => 20, 'D' => 16, 'E' => 16, 'F' => 14]);
+
+        $row = $headerRow + 1;
+        foreach ($tehsils as $t) {
+            $sheet->setCellValue("A{$row}", $t->name);
+            $sheet->setCellValue("B{$row}", $t->district?->name);
+            $sheet->setCellValue("C{$row}", $t->district?->division?->name);
+            $sheet->setCellValue("D{$row}", $t->union_councils_count);
+            $this->xlStatusCell($sheet, "E{$row}", $t->adlg_activated ? 'Assigned' : 'Vacant', $t->adlg_activated ? 'success' : 'warning');
+            $sheet->setCellValue("F{$row}", $t->created_at?->toDateString());
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= $headerRow + 1) {
+            $this->xlBorderAndFilter($sheet, "A{$headerRow}:{$lastCol}{$headerRow}", "A{$headerRow}:{$lastCol}{$lastRow}");
+        }
+
+        return $this->xlDownload($spreadsheet, 'Tehsils_'.now()->toDateString().'.xlsx');
     }
 
     public function store(StoreTehsilRequest $request)

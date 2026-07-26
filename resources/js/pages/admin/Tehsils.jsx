@@ -16,6 +16,7 @@ import {
     Select,
     TextInput,
 } from '../../components/ui';
+import { APP_BASE_PATH } from '../../utils/basePath';
 
 function StepDots({ step }) {
     return (
@@ -247,7 +248,12 @@ export default function Tehsils() {
         <div>
             <div className="mb-1 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-ink">Tehsils</h1>
-                <Button onClick={() => setFormTarget({})}>+ New Tehsil</Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/admin/tehsils-export`, '_blank')}>
+                        📊 Export Excel
+                    </Button>
+                    <Button onClick={() => setFormTarget({})}>+ New Tehsil</Button>
+                </div>
             </div>
             <p className="mb-4 text-sm text-ink-muted">Step 3 of the geography hierarchy — belongs to a District.</p>
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
-import { AddHearingForm, CaseDocumentButtons, ProceedingsList } from '../../components/CaseProceedings';
+import { AddHearingForm, CaseDocumentButtons, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
 import { APP_BASE_PATH } from '../../utils/basePath';
 import { setLastModule } from '../../utils/lastModule';
 import {
@@ -228,6 +228,13 @@ function CaseDetailModal({ caseId, onClose }) {
                             <span className="text-xs text-ink-faint">📎 No document attached</span>
                         )}
                     </div>
+
+                    <PartyPhotosDisplay
+                        divorcerPhotos={c.divorcer_photos}
+                        respondentPhotos={c.respondent_photos}
+                        divorcerLabel={c.divorcer_name}
+                        respondentLabel={c.respondent_name}
+                    />
 
                     {c.days_remaining !== null && (
                         <div

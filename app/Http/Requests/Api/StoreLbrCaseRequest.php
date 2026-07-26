@@ -35,6 +35,7 @@ class StoreLbrCaseRequest extends FormRequest
             'secretary_remarks' => ['nullable', 'string'],
 
             'documents' => ['required', 'array'],
+            'documents.*' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
             'documents.cnic' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
             'documents.photo1' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png'],
             'documents.photo2' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png'],
@@ -42,6 +43,11 @@ class StoreLbrCaseRequest extends FormRequest
             'documents.slip' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
             'documents.vacc' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
             'documents.bform' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+            'documents.newspaper_notice' => ['required_if:category,7+', 'nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+            'documents.stamp_paper' => ['required_if:category,7+', 'nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+
+            'extra_labels' => ['nullable', 'array'],
+            'extra_labels.*' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

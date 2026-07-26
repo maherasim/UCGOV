@@ -8,6 +8,7 @@ use App\Http\Resources\DailyReportResource;
 use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\DailyReport;
+use App\Models\ReportFieldDefinition;
 use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,11 +28,27 @@ class DailyReportController extends Controller
             ? $request->file('attachment')->store('daily-reports', 'public')
             : null;
 
-        $customFields = collect($request->input('custom_fields', []))
+        // ADLG-defined standing fields (answered) come first, then the secretary's
+        // own ad-hoc ones — both end up in the same custom_fields array, tagged
+        // with field_definition_id (null for ad-hoc) so the source stays traceable.
+        $defsById = ReportFieldDefinition::whereIn(
+            'id',
+            collect($request->input('field_responses', []))->pluck('field_definition_id')
+        )->get()->keyBy('id');
+
+        $adlgFields = collect($request->input('field_responses', []))
+            ->map(function ($f) use ($defsById) {
+                $def = $defsById->get($f['field_definition_id'] ?? null);
+
+                return $def ? ['label' => $def->label, 'value' => $f['value'] ?? '', 'field_definition_id' => $def->id] : null;
+            })
+            ->filter();
+
+        $adhocFields = collect($request->input('custom_fields', []))
             ->filter(fn ($f) => filled($f['label'] ?? null))
-            ->map(fn ($f) => ['label' => $f['label'], 'value' => $f['value'] ?? ''])
-            ->values()
-            ->all();
+            ->map(fn ($f) => ['label' => $f['label'], 'value' => $f['value'] ?? '', 'field_definition_id' => null]);
+
+        $customFields = $adlgFields->concat($adhocFields)->values()->all();
 
         $report = DailyReport::create([
             'secretary_id' => $user->id,
@@ -65,7 +82,7 @@ class DailyReportController extends Controller
             ]);
         }
 
-        return new DailyReportResource($report->load(['secretary', 'unionCouncil']));
+        return new DailyReportResource($report->load(['secretary', 'unionCouncil.tehsil.district']));
     }
 
     public function myHistory(Request $request)
@@ -83,7 +100,7 @@ class DailyReportController extends Controller
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
         $reports = DailyReport::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->with(['secretary', 'unionCouncil'])
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->latest('report_date')
             ->take(200)
             ->get();
@@ -100,7 +117,7 @@ class DailyReportController extends Controller
         $districtId = $request->user()->ddlgProfile->district_id;
 
         $reports = DailyReport::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
-            ->with(['secretary', 'unionCouncil'])
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->latest('report_date')
             ->take(200)
             ->get();
@@ -115,7 +132,7 @@ class DailyReportController extends Controller
 
         $report->update(['reviewed' => true, 'reviewed_at' => now()]);
 
-        return new DailyReportResource($report->load(['secretary', 'unionCouncil']));
+        return new DailyReportResource($report->load(['secretary', 'unionCouncil.tehsil.district']));
     }
 
     /**
@@ -129,7 +146,7 @@ class DailyReportController extends Controller
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
 
         $reports = DailyReport::whereHas('unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
-            ->with(['secretary', 'unionCouncil'])
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->orderByDesc('report_date')
             ->get();
 
@@ -151,7 +168,7 @@ class DailyReportController extends Controller
         $districtId = $request->user()->ddlgProfile->district_id;
 
         $reports = DailyReport::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
-            ->with(['secretary', 'unionCouncil'])
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->orderByDesc('report_date')
             ->get();
 
@@ -216,37 +233,39 @@ class DailyReportController extends Controller
     {
         $sheet->setTitle('Report Detail');
 
-        $headers = ['Date', 'Secretary', 'Union Council', 'Nikah', 'Birth', 'Death', 'Complaints', 'Status', 'Reviewed At', 'Remarks', 'Custom Fields', 'Attachment'];
+        $headers = ['Date', 'District', 'Tehsil', 'Union Council', 'Secretary', 'Nikah', 'Birth', 'Death', 'Complaints', 'Status', 'Reviewed At', 'Remarks', 'Custom Fields', 'Attachment'];
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
         $lastCol = $this->xlColumnLetter(count($headers));
         $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
         $this->xlColumnWidths($sheet, [
-            'A' => 12, 'B' => 20, 'C' => 18, 'D' => 9, 'E' => 9, 'F' => 9, 'G' => 12,
-            'H' => 12, 'I' => 16, 'J' => 30, 'K' => 30, 'L' => 18,
+            'A' => 12, 'B' => 16, 'C' => 16, 'D' => 18, 'E' => 20, 'F' => 9, 'G' => 9, 'H' => 9, 'I' => 12,
+            'J' => 12, 'K' => 16, 'L' => 30, 'M' => 30, 'N' => 18,
         ]);
 
         $row = 2;
         foreach ($reports as $r) {
             $sheet->setCellValue("A{$row}", $r->report_date?->toDateString());
-            $sheet->setCellValue("B{$row}", $r->secretary?->name);
-            $sheet->setCellValue("C{$row}", $r->unionCouncil?->name);
-            $sheet->setCellValue("D{$row}", $r->nikah_count);
-            $sheet->setCellValue("E{$row}", $r->birth_count);
-            $sheet->setCellValue("F{$row}", $r->death_count);
-            $sheet->setCellValue("G{$row}", $r->complaint_count);
-            $this->xlStatusCell($sheet, "H{$row}", $r->reviewed ? 'Reviewed' : 'Pending', $r->reviewed ? 'success' : 'warning');
-            $sheet->setCellValue("I{$row}", $r->reviewed_at?->format('Y-m-d H:i'));
-            $sheet->setCellValue("J{$row}", $r->remarks);
-            $sheet->setCellValue("K{$row}", collect($r->custom_fields ?? [])
+            $sheet->setCellValue("B{$row}", $r->unionCouncil?->tehsil?->district?->name);
+            $sheet->setCellValue("C{$row}", $r->unionCouncil?->tehsil?->name);
+            $sheet->setCellValue("D{$row}", $r->unionCouncil?->name);
+            $sheet->setCellValue("E{$row}", $r->secretary?->name);
+            $sheet->setCellValue("F{$row}", $r->nikah_count);
+            $sheet->setCellValue("G{$row}", $r->birth_count);
+            $sheet->setCellValue("H{$row}", $r->death_count);
+            $sheet->setCellValue("I{$row}", $r->complaint_count);
+            $this->xlStatusCell($sheet, "J{$row}", $r->reviewed ? 'Reviewed' : 'Pending', $r->reviewed ? 'success' : 'warning');
+            $sheet->setCellValue("K{$row}", $r->reviewed_at?->format('Y-m-d H:i'));
+            $sheet->setCellValue("L{$row}", $r->remarks);
+            $sheet->setCellValue("M{$row}", collect($r->custom_fields ?? [])
                 ->map(fn ($f) => "{$f['label']}: {$f['value']}")
                 ->implode('; ') ?: '—');
 
             if ($r->attachment_path) {
-                $this->xlHyperlink($sheet, "L{$row}", Storage::disk('public')->url($r->attachment_path), 'View attachment');
+                $this->xlHyperlink($sheet, "N{$row}", Storage::disk('public')->url($r->attachment_path), 'View attachment');
             } else {
-                $sheet->setCellValue("L{$row}", '—');
+                $sheet->setCellValue("N{$row}", '—');
             }
 
             $row++;

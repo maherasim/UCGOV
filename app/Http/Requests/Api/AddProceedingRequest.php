@@ -44,6 +44,12 @@ class AddProceedingRequest extends FormRequest
             'notice_ref' => ['nullable', 'string', 'max:255', 'required_if:notice_issued,1'],
             'notice_date' => ['nullable', 'date', 'required_if:notice_issued,1'],
             'notice_details' => ['nullable', 'string'],
+
+            // Chairman's (Secretary UC or ADLG, whoever presides/records) note and
+            // order for this specific hearing — separate from the parties' own
+            // statements above, and shown in both the notesheet and full case file.
+            'adlg_observation' => ['nullable', 'string'],
+            'adlg_direction' => ['nullable', 'string'],
         ];
     }
 

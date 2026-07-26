@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DailyReportController;
+use App\Http\Controllers\Api\ReportFieldDefinitionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DdlgController;
 use App\Http\Controllers\Api\DdlgDashboardController;
@@ -61,11 +62,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/districts/{district}', [GeographyController::class, 'destroyDistrict']);
 
         Route::get('/tehsils', [TehsilController::class, 'index']);
+        Route::get('/tehsils-export', [TehsilController::class, 'export']);
         Route::post('/tehsils', [TehsilController::class, 'store']);
         Route::put('/tehsils/{tehsil}', [TehsilController::class, 'update']);
         Route::delete('/tehsils/{tehsil}', [TehsilController::class, 'destroy']);
 
         Route::get('/adlgs', [AdlgController::class, 'index']);
+        Route::get('/adlgs-export', [AdlgController::class, 'export']);
         Route::post('/adlgs', [AdlgController::class, 'store']);
         Route::put('/adlgs/{adlg}', [AdlgController::class, 'update']);
         Route::patch('/adlgs/{adlg}/toggle-active', [AdlgController::class, 'toggleActive']);
@@ -76,8 +79,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/ddlgs/{ddlg}/toggle-active', [DdlgController::class, 'toggleActive']);
 
         Route::get('/union-councils', [UnionCouncilController::class, 'indexForAdmin']);
+        Route::get('/union-councils-export', [UnionCouncilController::class, 'exportForAdmin']);
 
         Route::get('/secretaries', [SecretaryController::class, 'indexForAdmin']);
+        Route::get('/secretaries-export', [SecretaryController::class, 'exportForAdmin']);
         Route::get('/secretaries/{secretary}', [SecretaryController::class, 'showForAdmin']);
 
         Route::get('/audit-log', [AuditLogController::class, 'index']);
@@ -143,6 +148,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/reports', [DailyReportController::class, 'indexForAdlg']);
         Route::get('/reports/export', [DailyReportController::class, 'export']);
+        Route::get('/report-fields', [ReportFieldDefinitionController::class, 'indexForAdlg']);
+        Route::post('/report-fields', [ReportFieldDefinitionController::class, 'store']);
+        Route::patch('/report-fields/{reportFieldDefinition}/toggle-active', [ReportFieldDefinitionController::class, 'toggleActive']);
         Route::patch('/reports/{report}/mark-reviewed', [DailyReportController::class, 'markReviewed']);
 
         Route::get('/performas', [PerformaController::class, 'indexForAdlg']);
@@ -175,9 +183,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [DdlgDashboardController::class, 'index']);
 
         Route::get('/tehsils', [TehsilController::class, 'indexForDdlg']);
+        Route::get('/tehsils-export', [TehsilController::class, 'exportForDdlg']);
         Route::get('/union-councils', [UnionCouncilController::class, 'indexForDdlg']);
+        Route::get('/union-councils-export', [UnionCouncilController::class, 'exportForDdlg']);
         Route::get('/secretaries', [SecretaryController::class, 'indexForDdlg']);
+        Route::get('/secretaries-export', [SecretaryController::class, 'exportForDdlg']);
         Route::get('/adlgs', [AdlgController::class, 'indexForDdlg']);
+        Route::get('/adlgs-export', [AdlgController::class, 'exportForDdlg']);
 
         Route::get('/cases', [DvCaseController::class, 'indexForDdlg']);
         Route::get('/cases/{case}', [DvCaseController::class, 'showForDdlg']);
@@ -225,6 +237,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/reports', [DailyReportController::class, 'store']);
         Route::get('/reports', [DailyReportController::class, 'myHistory']);
+        Route::get('/report-fields', [ReportFieldDefinitionController::class, 'indexForSecretary']);
 
         Route::get('/performas', [PerformaController::class, 'indexForSecretary']);
         Route::post('/performas/{performa}/respond-form', [PerformaController::class, 'respondForm']);

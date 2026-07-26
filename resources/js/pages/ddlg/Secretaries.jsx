@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import { APP_BASE_PATH } from '../../utils/basePath';
 import { setLastModule } from '../../utils/lastModule';
-import { Badge, Card, FullScreenSpinner, UsernameTag } from '../../components/ui';
+import { Badge, Button, Card, FullScreenSpinner, UsernameTag } from '../../components/ui';
 
 export default function Secretaries() {
     useEffect(() => setLastModule('sec'), []);
@@ -17,9 +18,14 @@ export default function Secretaries() {
 
     return (
         <div>
-            <div className="mb-4">
-                <h1 className="text-xl font-bold text-ink">Secretaries</h1>
-                <p className="text-sm text-ink-muted">Every UC Secretary across your district — view only</p>
+            <div className="mb-4 flex items-center justify-between">
+                <div>
+                    <h1 className="text-xl font-bold text-ink">Secretaries</h1>
+                    <p className="text-sm text-ink-muted">Every UC Secretary across your district — view only</p>
+                </div>
+                <Button variant="ghost" onClick={() => window.open(`${APP_BASE_PATH}/api/ddlg/secretaries-export`, '_blank')}>
+                    📊 Export Excel
+                </Button>
             </div>
 
             <Card>

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
-import { AddHearingForm, CaseDocumentButtons, ProceedingsList } from '../../components/CaseProceedings';
+import { AddHearingForm, CaseDocumentButtons, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
 import { setLastModule } from '../../utils/lastModule';
 import {
     Badge,
@@ -67,17 +67,66 @@ const emptyWizard = {
     remarks: '',
 };
 
+/** A free photo gallery (no labels, no fixed count) — click "+" to pick one or more images. */
+function PhotoGalleryInput({ photos, onChange }) {
+    const addFiles = (fileList) => {
+        const added = Array.from(fileList).map((file) => ({ id: `${Date.now()}-${Math.random()}`, file, preview: URL.createObjectURL(file) }));
+        onChange([...photos, ...added]);
+    };
+    const remove = (id) => {
+        const target = photos.find((p) => p.id === id);
+        if (target) URL.revokeObjectURL(target.preview);
+        onChange(photos.filter((p) => p.id !== id));
+    };
+
+    return (
+        <div className="flex flex-wrap gap-2">
+            {photos.map((p) => (
+                <div key={p.id} className="relative">
+                    <img src={p.preview} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    <button
+                        type="button"
+                        onClick={() => remove(p.id)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
+                        aria-label="Remove photo"
+                    >
+                        ✕
+                    </button>
+                </div>
+            ))}
+            <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-border text-ink-muted hover:border-primary-400 hover:text-primary-600">
+                <span className="text-lg leading-none">+</span>
+                <span className="text-[9px] font-semibold">Add</span>
+                <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                        if (e.target.files?.length) addFiles(e.target.files);
+                        e.target.value = '';
+                    }}
+                />
+            </label>
+        </div>
+    );
+}
+
 function NewCaseWizard({ open, onClose }) {
     const queryClient = useQueryClient();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(emptyWizard);
     const [attachment, setAttachment] = useState(null);
+    const [divorcerPhotos, setDivorcerPhotos] = useState([]);
+    const [respondentPhotos, setRespondentPhotos] = useState([]);
     const [error, setError] = useState('');
 
     const close = () => {
         setStep(1);
         setForm(emptyWizard);
         setAttachment(null);
+        setDivorcerPhotos([]);
+        setRespondentPhotos([]);
         setError('');
         onClose();
     };
@@ -87,6 +136,8 @@ function NewCaseWizard({ open, onClose }) {
             const formData = new FormData();
             Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''));
             if (attachment) formData.append('attachment', attachment);
+            divorcerPhotos.forEach((p) => formData.append('divorcer_photos[]', p.file));
+            respondentPhotos.forEach((p) => formData.append('respondent_photos[]', p.file));
 
             return client.post('/api/sec/cases', formData);
         },
@@ -264,6 +315,14 @@ function NewCaseWizard({ open, onClose }) {
                             />
                         </label>
                     </Field>
+
+                    <Field label={`${isDivorce ? 'Divorcer (Husband)' : 'Divorcer (Wife)'} Photos (optional)`}>
+                        <PhotoGalleryInput photos={divorcerPhotos} onChange={setDivorcerPhotos} />
+                    </Field>
+                    <Field label={`${isDivorce ? 'Respondent (Wife)' : 'Respondent (Husband)'} Photos (optional)`}>
+                        <PhotoGalleryInput photos={respondentPhotos} onChange={setRespondentPhotos} />
+                    </Field>
+
                     <Field label="Remarks">
                         <Textarea value={form.remarks} onChange={set('remarks')} />
                     </Field>
@@ -288,6 +347,8 @@ function NewCaseWizard({ open, onClose }) {
                             ['Divorcer', `${form.divorcer_name} · ${form.divorcer_cnic}`],
                             ['Respondent', `${form.respondent_name} · ${form.respondent_cnic}`],
                             ['Attachment', attachment ? `✅ ${attachment.name}` : '⚠️ Not attached'],
+                            ['Divorcer Photos', `${divorcerPhotos.length} attached`],
+                            ['Respondent Photos', `${respondentPhotos.length} attached`],
                         ].map(([k, v]) => (
                             <div key={k} className="flex justify-between px-3 py-2 text-xs">
                                 <span className="text-ink-muted">{k}</span>
@@ -428,6 +489,13 @@ function CaseDetailModal({ caseId, onClose }) {
                             <span className="text-xs text-ink-faint">📎 No document attached</span>
                         )}
                     </div>
+
+                    <PartyPhotosDisplay
+                        divorcerPhotos={c.divorcer_photos}
+                        respondentPhotos={c.respondent_photos}
+                        divorcerLabel={c.divorcer_name}
+                        respondentLabel={c.respondent_name}
+                    />
 
                     <div className="mb-4">
                         {STAGES.map((s, i) => {

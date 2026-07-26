@@ -161,6 +161,21 @@ function LbrDetailModal({ lbrCaseId, onClose, onReview }) {
                         </div>
                     )}
 
+                    {c.timeline?.length > 0 && (
+                        <div className="mb-4 rounded-xl border border-border p-3">
+                            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Note Trail</div>
+                            {c.timeline.map((t, i) => (
+                                <div key={i} className="flex gap-2 py-1 text-xs">
+                                    <span className="flex-shrink-0 text-ink-faint">{t.event_date}</span>
+                                    <span className="text-ink">
+                                        {t.note}
+                                        {t.actor && <span className="text-ink-faint"> — {t.actor}</span>}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="flex gap-2">
                         <a
                             href={`${APP_BASE_PATH}/api/ddlg/lbr-cases/${c.id}/notesheet`}

@@ -28,6 +28,8 @@ const emptyForm = {
     notice_ref: '',
     notice_date: '',
     notice_details: '',
+    adlg_observation: '',
+    adlg_direction: '',
 };
 
 function Checkbox({ checked, onChange, label }) {
@@ -248,6 +250,16 @@ export function AddHearingForm({ role, caseId, queryKeyPrefix, onDone }) {
                 )}
             </div>
 
+            <div className="rounded-lg border border-border bg-surface p-3">
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Note / Order for This Hearing</div>
+                <Field label="Note / Remarks (optional)">
+                    <Textarea value={form.adlg_observation} onChange={(e) => set('adlg_observation')(e.target.value)} placeholder="Observations recorded for this hearing…" />
+                </Field>
+                <Field label="Order / Direction (optional)">
+                    <Textarea value={form.adlg_direction} onChange={(e) => set('adlg_direction')(e.target.value)} placeholder="Any order or direction issued at this hearing…" />
+                </Field>
+            </div>
+
             <ErrorText>{error}</ErrorText>
             <Button type="submit" className="w-full" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Saving…' : '➕ Save Hearing Record'}
@@ -298,9 +310,53 @@ export function ProceedingsList({ proceedings }) {
                     {p.reconciliation && <div className="mt-1 text-[11px] text-ink-muted">Reconciliation: {p.reconciliation}</div>}
                     {p.adjourned && <div className="mt-1 text-[11px] font-medium text-accent-700">Adjourned — Next hearing: {p.next_hearing_date}</div>}
                     {p.notice_issued && <div className="mt-1 text-[11px] font-medium text-info">Notice {p.notice_ref} issued {p.notice_date}</div>}
+                    {p.adlg_observation && (
+                        <div className="mt-1.5 rounded-lg bg-blue-50 px-2 py-1.5 text-[11px] text-info">
+                            <span className="font-semibold">Note:</span> {p.adlg_observation}
+                        </div>
+                    )}
+                    {p.adlg_direction && (
+                        <div className="mt-1.5 rounded-lg bg-primary-50 px-2 py-1.5 text-[11px] text-primary-700">
+                            <span className="font-semibold">Order:</span> {p.adlg_direction}
+                        </div>
+                    )}
                 </div>
             ))}
 
+            <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+        </div>
+    );
+}
+
+/**
+ * Read-only display of the two party photo galleries the Secretary attached at
+ * case-initiation — same component reused across Secretary/ADLG/DDLG detail views
+ * so every role sees the identical set. Clicking a thumbnail opens the shared
+ * preview modal, matching how every other document/photo in this app previews.
+ */
+export function PartyPhotosDisplay({ divorcerPhotos, respondentPhotos, divorcerLabel = 'Divorcer', respondentLabel = 'Respondent' }) {
+    const [previewDoc, setPreviewDoc] = useState(null);
+
+    if (!divorcerPhotos?.length && !respondentPhotos?.length) return null;
+
+    const Gallery = ({ label, photos }) =>
+        photos?.length > 0 && (
+            <div className="mb-3">
+                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">{label} ({photos.length})</div>
+                <div className="flex flex-wrap gap-2">
+                    {photos.map((url, i) => (
+                        <button key={url} type="button" onClick={() => setPreviewDoc({ label: `${label} — Photo ${i + 1}`, file_url: url })}>
+                            <img src={url} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+
+    return (
+        <div className="mb-3 rounded-xl border border-border p-3">
+            <Gallery label={divorcerLabel} photos={divorcerPhotos} />
+            <Gallery label={respondentLabel} photos={respondentPhotos} />
             <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
         </div>
     );

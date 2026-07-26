@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
+import { PartyPhotosDisplay } from '../../components/CaseProceedings';
 import { setLastModule } from '../../utils/lastModule';
 import { Badge, Card, FullScreenSpinner, Modal, Select } from '../../components/ui';
 
@@ -48,6 +49,13 @@ function CaseDetailModal({ caseId, onClose }) {
                             <div className="text-xs text-ink-muted">{c.respondent_cnic}</div>
                         </div>
                     </div>
+
+                    <PartyPhotosDisplay
+                        divorcerPhotos={c.divorcer_photos}
+                        respondentPhotos={c.respondent_photos}
+                        divorcerLabel={c.divorcer_name}
+                        respondentLabel={c.respondent_name}
+                    />
 
                     <div className="mb-3 rounded-xl border border-border p-3 text-xs text-ink-muted">
                         <div className="flex justify-between py-0.5"><span>Union Council</span><span className="font-semibold text-ink">{c.union_council}</span></div>

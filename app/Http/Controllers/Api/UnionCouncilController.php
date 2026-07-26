@@ -71,6 +71,41 @@ class UnionCouncilController extends Controller
         return UnionCouncilResource::collection($query->orderBy('name')->paginate($perPage));
     }
 
+    /** Punjab-wide, for Super Admin. */
+    public function exportForAdmin(Request $request)
+    {
+        $ucs = UnionCouncil::with(['tehsil.district', 'secretaryProfile.user'])->orderBy('name')->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Union Councils Report');
+
+        $this->buildUcSummarySheet($spreadsheet->getActiveSheet(), $ucs);
+        $this->buildUcDetailSheet($spreadsheet->createSheet(), $ucs, includeJurisdiction: true);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Union_Councils_'.now()->toDateString().'.xlsx');
+    }
+
+    /** Own-district only, for DDLG. */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $ucs = UnionCouncil::whereHas('tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['tehsil.district', 'secretaryProfile.user'])
+            ->orderBy('name')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Union Councils Report');
+
+        $this->buildUcSummarySheet($spreadsheet->getActiveSheet(), $ucs);
+        $this->buildUcDetailSheet($spreadsheet->createSheet(), $ucs, includeJurisdiction: true);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Union_Councils_'.now()->toDateString().'.xlsx');
+    }
+
     /**
      * A "Summary" sheet (assigned vs. vacant, geofence coverage) plus the full
      * "Union Councils" detail listing, colored to match the on-screen badges
@@ -129,37 +164,62 @@ class UnionCouncilController extends Controller
         $this->xlBorderAndFilter($sheet, "A{$headerRow}:B{$headerRow}", "A{$headerRow}:B".($row - 1), freezeBelowHeader: false);
     }
 
-    protected function buildUcDetailSheet(Worksheet $sheet, $ucs): void
+    /**
+     * $includeJurisdiction adds Tehsil/District columns — irrelevant for ADLG's
+     * own-tehsil export (every row is the same tehsil) but needed once the export
+     * spans multiple tehsils (DDLG's district, Admin's Punjab-wide) so the file
+     * is usable standalone.
+     */
+    protected function buildUcDetailSheet(Worksheet $sheet, $ucs, bool $includeJurisdiction = false): void
     {
         $sheet->setTitle('Union Councils');
 
-        $headers = ['UC No.', 'Name', 'Code', 'Address', 'Secretary', 'Geofence', 'Latitude', 'Longitude', 'Radius (m)'];
+        $headers = ['UC No.', 'Name', 'Code', 'Address'];
+        if ($includeJurisdiction) {
+            $headers[] = 'Tehsil';
+            $headers[] = 'District';
+        }
+        array_push($headers, 'Secretary', 'Geofence', 'Latitude', 'Longitude', 'Radius (m)');
+
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
         $lastCol = $this->xlColumnLetter(count($headers));
         $this->xlHeaderRow($sheet, "A1:{$lastCol}1");
-        $this->xlColumnWidths($sheet, ['A' => 10, 'B' => 24, 'C' => 12, 'D' => 30, 'E' => 22, 'F' => 14, 'G' => 12, 'H' => 12, 'I' => 12]);
+
+        $widths = ['A' => 10, 'B' => 24, 'C' => 12, 'D' => 30];
+        if ($includeJurisdiction) {
+            $widths += ['E' => 18, 'F' => 18, 'G' => 22, 'H' => 14, 'I' => 12, 'J' => 12, 'K' => 12];
+        } else {
+            $widths += ['E' => 22, 'F' => 14, 'G' => 12, 'H' => 12, 'I' => 12];
+        }
+        $this->xlColumnWidths($sheet, $widths);
 
         $row = 2;
         foreach ($ucs as $uc) {
-            $sheet->setCellValue("A{$row}", $uc->uc_no);
-            $sheet->setCellValue("B{$row}", $uc->name);
-            $sheet->setCellValue("C{$row}", $uc->code);
-            $sheet->setCellValue("D{$row}", $uc->address);
+            $col = 'A';
+            $sheet->setCellValue($col++.$row, $uc->uc_no);
+            $sheet->setCellValue($col++.$row, $uc->name);
+            $sheet->setCellValue($col++.$row, $uc->code);
+            $sheet->setCellValue($col++.$row, $uc->address);
+
+            if ($includeJurisdiction) {
+                $sheet->setCellValue($col++.$row, $uc->tehsil?->name);
+                $sheet->setCellValue($col++.$row, $uc->tehsil?->district?->name);
+            }
 
             if ($uc->secretaryProfile?->user) {
-                $this->xlStatusCell($sheet, "E{$row}", $uc->secretaryProfile->user->name, 'success');
+                $this->xlStatusCell($sheet, $col++.$row, $uc->secretaryProfile->user->name, 'success');
             } else {
-                $this->xlStatusCell($sheet, "E{$row}", 'Vacant', 'warning');
+                $this->xlStatusCell($sheet, $col++.$row, 'Vacant', 'warning');
             }
 
             $hasGeofence = $uc->lat !== null && $uc->lng !== null;
-            $this->xlStatusCell($sheet, "F{$row}", $hasGeofence ? "Set · {$uc->geofence_radius}m" : 'Not set', $hasGeofence ? 'success' : 'neutral');
+            $this->xlStatusCell($sheet, $col++.$row, $hasGeofence ? "Set · {$uc->geofence_radius}m" : 'Not set', $hasGeofence ? 'success' : 'neutral');
 
-            $sheet->setCellValue("G{$row}", $uc->lat);
-            $sheet->setCellValue("H{$row}", $uc->lng);
-            $sheet->setCellValue("I{$row}", $uc->geofence_radius);
+            $sheet->setCellValue($col++.$row, $uc->lat);
+            $sheet->setCellValue($col++.$row, $uc->lng);
+            $sheet->setCellValue($col++.$row, $uc->geofence_radius);
             $row++;
         }
 

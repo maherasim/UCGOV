@@ -11,12 +11,17 @@ use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\Tehsil;
 use App\Models\User;
+use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class AdlgController extends Controller
 {
+    use StylesExcelSheets;
+
     public function index()
     {
         $adlgs = User::where('role', 'adlg')
@@ -41,6 +46,68 @@ class AdlgController extends Controller
             ->get();
 
         return UserResource::collection($adlgs);
+    }
+
+    /** Punjab-wide, for Super Admin. */
+    public function export(Request $request)
+    {
+        $adlgs = User::where('role', 'adlg')->with('adlgProfile.tehsil.district.division')->orderBy('name')->get();
+
+        return $this->buildAdlgWorkbook($adlgs, 'Punjab-wide');
+    }
+
+    /** Own-district only, for DDLG. */
+    public function exportForDdlg(Request $request)
+    {
+        $districtId = $request->user()->ddlgProfile->district_id;
+
+        $adlgs = User::where('role', 'adlg')
+            ->whereHas('adlgProfile.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with('adlgProfile.tehsil.district.division')
+            ->orderBy('name')
+            ->get();
+
+        return $this->buildAdlgWorkbook($adlgs, 'District');
+    }
+
+    protected function buildAdlgWorkbook($adlgs, string $scope)
+    {
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('ADLGs Report');
+
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('ADLGs');
+        $this->xlTitleBanner($sheet, 'Union Council Management System — ADLGs', "{$scope} · {$adlgs->count()} ADLGs", 9);
+
+        $headers = ['Name', 'Username', 'Tehsil', 'District', 'Division', 'Grade', 'CNIC', 'Phone', 'Status'];
+        $headerRow = 4;
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, $headerRow], $h);
+        }
+        $lastCol = $this->xlColumnLetter(count($headers));
+        $this->xlHeaderRow($sheet, "A{$headerRow}:{$lastCol}{$headerRow}");
+        $this->xlColumnWidths($sheet, ['A' => 22, 'B' => 20, 'C' => 18, 'D' => 18, 'E' => 18, 'F' => 10, 'G' => 16, 'H' => 14, 'I' => 12]);
+
+        $row = $headerRow + 1;
+        foreach ($adlgs as $a) {
+            $sheet->setCellValue("A{$row}", $a->name);
+            $sheet->setCellValue("B{$row}", $a->username);
+            $sheet->setCellValue("C{$row}", $a->adlgProfile?->tehsil?->name);
+            $sheet->setCellValue("D{$row}", $a->adlgProfile?->tehsil?->district?->name);
+            $sheet->setCellValue("E{$row}", $a->adlgProfile?->tehsil?->district?->division?->name);
+            $sheet->setCellValue("F{$row}", $a->adlgProfile?->grade);
+            $sheet->setCellValue("G{$row}", $a->cnic);
+            $sheet->setCellValue("H{$row}", $a->phone);
+            $this->xlStatusCell($sheet, "I{$row}", $a->active ? 'Active' : 'Inactive', $a->active ? 'success' : 'danger');
+            $row++;
+        }
+
+        $lastRow = $row - 1;
+        if ($lastRow >= $headerRow + 1) {
+            $this->xlBorderAndFilter($sheet, "A{$headerRow}:{$lastCol}{$headerRow}", "A{$headerRow}:{$lastCol}{$lastRow}");
+        }
+
+        return $this->xlDownload($spreadsheet, 'ADLGs_'.now()->toDateString().'.xlsx');
     }
 
     public function store(StoreAdlgRequest $request)
