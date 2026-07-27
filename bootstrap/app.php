@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,4 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        // Requires the server's real cron to run `php artisan schedule:run` every
+        // minute — see the deploy notes; this alone does nothing without that.
+        $schedule->command('attendance:send-reminders')->dailyAt('09:10')->timezone('Asia/Karachi');
+    })
+    ->create();

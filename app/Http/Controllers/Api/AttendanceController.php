@@ -77,6 +77,10 @@ class AttendanceController extends Controller
         // Best-effort fingerprint check — every secretary enrolls once at first
         // login, but a failed/skipped/unsupported scan on any given day must never
         // block attendance. GPS + the selfie photo below are what's actually required.
+        // Two independent verification paths feed the same flag: the web app sends a
+        // real WebAuthn credential (cryptographically verified below); the mobile app
+        // instead gates mark-in behind the device's own Face ID/fingerprint and simply
+        // asserts device_biometric_confirmed=true over its authenticated session.
         $biometricVerified = false;
         $credential = $request->credential();
         $verificationOptions = $request->verificationOptions();
@@ -87,6 +91,8 @@ class AttendanceController extends Controller
             } catch (\Throwable) {
                 $biometricVerified = false;
             }
+        } elseif ($request->boolean('device_biometric_confirmed')) {
+            $biometricVerified = true;
         }
 
         $distance = ($uc->lat && $uc->lng)

@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    // Mobile app push notifications (attendance reminders, etc.) — set once the
+    // Firebase project exists. `credentials` is the absolute path to the service
+    // account JSON downloaded from Firebase Console > Project Settings > Service Accounts.
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        // Never committed (see .gitignore) — the service account key downloaded
+        // from Firebase Console > Project Settings > Service Accounts. Override
+        // via FIREBASE_CREDENTIALS only if it lives somewhere other than the
+        // default private storage path.
+        'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/firebase/firebase-service-account.json')),
+    ],
+
 ];

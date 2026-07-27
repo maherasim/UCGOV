@@ -47,6 +47,13 @@ class MarkAttendanceRequest extends FormRequest
             'credential.rawId' => ['required_with:credential', 'string'],
             'credential.type' => ['required_with:credential', 'string', 'in:public-key'],
             'credential.response' => ['required_with:credential', 'array'],
+
+            // Mobile app's device-level Face ID/fingerprint gate (local_auth) — not a
+            // WebAuthn credential the server can cryptographically verify, so it's a
+            // trust-the-authenticated-client signal rather than a proof. Only meaningful
+            // over an authenticated session, same trust boundary as every other mutating
+            // endpoint in this API.
+            'device_biometric_confirmed' => ['nullable', 'boolean'],
         ];
     }
 

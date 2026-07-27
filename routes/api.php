@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ReportFieldDefinitionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DdlgController;
 use App\Http\Controllers\Api\DdlgDashboardController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DklicDocumentController;
 use App\Http\Controllers\Api\DklicKnowledgeController;
 use App\Http\Controllers\Api\DvCaseController;
@@ -47,6 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    Route::post('/device-tokens', [DeviceTokenController::class, 'register']);
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'unregister']);
 
     Route::middleware('role:sa')->prefix('admin')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
