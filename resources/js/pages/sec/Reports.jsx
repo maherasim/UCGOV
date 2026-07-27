@@ -289,7 +289,7 @@ function DailyReportTab() {
                             {adlgFields?.length > 0 && (
                                 <div className="mb-4">
                                     <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                                        Requested by ADLG
+                                        Required  by ADLG
                                     </span>
                                     <div className="space-y-2">
                                         {adlgFields.map((f) => (
