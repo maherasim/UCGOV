@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
-import { AddHearingForm, CaseDocumentButtons, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
+import { AddHearingForm, CaseDocumentButtons, KhulaDocumentsDisplay, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
 import { setLastModule } from '../../utils/lastModule';
 import {
     Badge,
@@ -67,15 +67,24 @@ const emptyWizard = {
     remarks: '',
 };
 
-/** A free photo gallery (no labels, no fixed count) — click "+" to pick one or more images. */
-function PhotoGalleryInput({ photos, onChange }) {
+/**
+ * A free file gallery (no labels, no fixed count) — click "+" to pick one or more
+ * files. `accept="image/*"` for photo-only galleries; pass a broader accept (plus
+ * `allowPdf`) to also take PDFs, which render as a filename chip instead of a thumbnail.
+ */
+function PhotoGalleryInput({ photos, onChange, accept = 'image/*', allowPdf = false }) {
     const addFiles = (fileList) => {
-        const added = Array.from(fileList).map((file) => ({ id: `${Date.now()}-${Math.random()}`, file, preview: URL.createObjectURL(file) }));
+        const added = Array.from(fileList).map((file) => ({
+            id: `${Date.now()}-${Math.random()}`,
+            file,
+            isImage: file.type.startsWith('image/'),
+            preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        }));
         onChange([...photos, ...added]);
     };
     const remove = (id) => {
         const target = photos.find((p) => p.id === id);
-        if (target) URL.revokeObjectURL(target.preview);
+        if (target?.preview) URL.revokeObjectURL(target.preview);
         onChange(photos.filter((p) => p.id !== id));
     };
 
@@ -83,12 +92,19 @@ function PhotoGalleryInput({ photos, onChange }) {
         <div className="flex flex-wrap gap-2">
             {photos.map((p) => (
                 <div key={p.id} className="relative">
-                    <img src={p.preview} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    {p.isImage ? (
+                        <img src={p.preview} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    ) : (
+                        <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface-subtle p-1 text-center">
+                            <span className="text-lg leading-none">📄</span>
+                            <span className="w-full truncate text-[8px] text-ink-muted">{p.file.name}</span>
+                        </div>
+                    )}
                     <button
                         type="button"
                         onClick={() => remove(p.id)}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white shadow"
-                        aria-label="Remove photo"
+                        aria-label="Remove file"
                     >
                         ✕
                     </button>
@@ -100,7 +116,7 @@ function PhotoGalleryInput({ photos, onChange }) {
                 <input
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept={allowPdf ? `${accept},.pdf` : accept}
                     className="hidden"
                     onChange={(e) => {
                         if (e.target.files?.length) addFiles(e.target.files);
@@ -117,6 +133,7 @@ function NewCaseWizard({ open, onClose }) {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(emptyWizard);
     const [attachment, setAttachment] = useState(null);
+    const [khulaDocuments, setKhulaDocuments] = useState([]);
     const [divorcerPhotos, setDivorcerPhotos] = useState([]);
     const [respondentPhotos, setRespondentPhotos] = useState([]);
     const [error, setError] = useState('');
@@ -125,6 +142,7 @@ function NewCaseWizard({ open, onClose }) {
         setStep(1);
         setForm(emptyWizard);
         setAttachment(null);
+        setKhulaDocuments([]);
         setDivorcerPhotos([]);
         setRespondentPhotos([]);
         setError('');
@@ -136,6 +154,7 @@ function NewCaseWizard({ open, onClose }) {
             const formData = new FormData();
             Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''));
             if (attachment) formData.append('attachment', attachment);
+            khulaDocuments.forEach((d) => formData.append('khula_documents[]', d.file));
             divorcerPhotos.forEach((p) => formData.append('divorcer_photos[]', p.file));
             respondentPhotos.forEach((p) => formData.append('respondent_photos[]', p.file));
 
@@ -300,21 +319,27 @@ function NewCaseWizard({ open, onClose }) {
 
             {step === 3 && (
                 <div>
-                    <Field label={isDivorce ? 'Divorce Deed (mandatory)' : 'Court Decree (mandatory)'}>
-                        <label
-                            className={`block w-full cursor-pointer rounded-xl border-2 border-dashed p-6 text-center text-sm font-medium ${
-                                attachment ? 'border-primary-500 bg-primary-50 text-primary-600' : 'border-border text-ink-muted'
-                            }`}
-                        >
-                            {attachment ? `✅ ${attachment.name}` : '📎 Tap to attach document'}
-                            <input
-                                type="file"
-                                className="hidden"
-                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                onChange={(e) => setAttachment(e.target.files[0] || null)}
-                            />
-                        </label>
-                    </Field>
+                    {isDivorce ? (
+                        <Field label="Divorce Deed (mandatory)">
+                            <label
+                                className={`block w-full cursor-pointer rounded-xl border-2 border-dashed p-6 text-center text-sm font-medium ${
+                                    attachment ? 'border-primary-500 bg-primary-50 text-primary-600' : 'border-border text-ink-muted'
+                                }`}
+                            >
+                                {attachment ? `✅ ${attachment.name}` : '📎 Tap to attach document'}
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                    onChange={(e) => setAttachment(e.target.files[0] || null)}
+                                />
+                            </label>
+                        </Field>
+                    ) : (
+                        <Field label="Court Decree (mandatory) — photos or PDF, up to ~4 files">
+                            <PhotoGalleryInput photos={khulaDocuments} onChange={setKhulaDocuments} accept="image/*" allowPdf />
+                        </Field>
+                    )}
 
                     <Field label={`${isDivorce ? 'Divorcer (Husband)' : 'Divorcer (Wife)'} Photos (optional)`}>
                         <PhotoGalleryInput photos={divorcerPhotos} onChange={setDivorcerPhotos} />
@@ -346,7 +371,9 @@ function NewCaseWizard({ open, onClose }) {
                             ['Date', form.receipt_date],
                             ['Divorcer', `${form.divorcer_name} · ${form.divorcer_cnic}`],
                             ['Respondent', `${form.respondent_name} · ${form.respondent_cnic}`],
-                            ['Attachment', attachment ? `✅ ${attachment.name}` : '⚠️ Not attached'],
+                            isDivorce
+                                ? ['Attachment', attachment ? `✅ ${attachment.name}` : '⚠️ Not attached']
+                                : ['Court Decree', `${khulaDocuments.length} file(s) attached`],
                             ['Divorcer Photos', `${divorcerPhotos.length} attached`],
                             ['Respondent Photos', `${respondentPhotos.length} attached`],
                         ].map(([k, v]) => (
@@ -490,6 +517,7 @@ function CaseDetailModal({ caseId, onClose }) {
                         )}
                     </div>
 
+                    <KhulaDocumentsDisplay documents={c.khula_documents} />
                     <PartyPhotosDisplay
                         divorcerPhotos={c.divorcer_photos}
                         respondentPhotos={c.respondent_photos}

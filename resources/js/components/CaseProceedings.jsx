@@ -5,7 +5,7 @@ import client from '../api/client';
 import { APP_BASE_PATH } from '../utils/basePath';
 import { compressPhoto } from '../utils/photoCapture';
 import { Button, ErrorText, Field, Textarea, TextInput } from './ui';
-import DocumentPreviewModal from './DocumentPreviewModal';
+import DocumentPreviewModal, { isImageUrl } from './DocumentPreviewModal';
 
 const emptyForm = {
     date: new Date().toISOString().slice(0, 10),
@@ -357,6 +357,34 @@ export function PartyPhotosDisplay({ divorcerPhotos, respondentPhotos, divorcerL
         <div className="mb-3 rounded-xl border border-border p-3">
             <Gallery label={divorcerLabel} photos={divorcerPhotos} />
             <Gallery label={respondentLabel} photos={respondentPhotos} />
+            <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+        </div>
+    );
+}
+
+/** Read-only display of Khula's multi-file Court Decree attachment (images or PDF). */
+export function KhulaDocumentsDisplay({ documents }) {
+    const [previewDoc, setPreviewDoc] = useState(null);
+
+    if (!documents?.length) return null;
+
+    return (
+        <div className="mb-3 rounded-xl border border-border p-3">
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Court Decree ({documents.length})</div>
+            <div className="flex flex-wrap gap-2">
+                {documents.map((url, i) => (
+                    <button key={url} type="button" onClick={() => setPreviewDoc({ label: `Court Decree — Document ${i + 1}`, file_url: url })}>
+                        {isImageUrl(url) ? (
+                            <img src={url} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                        ) : (
+                            <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface-subtle p-1 text-center">
+                                <span className="text-lg leading-none">📄</span>
+                                <span className="text-[8px] text-ink-muted">Doc {i + 1}</span>
+                            </div>
+                        )}
+                    </button>
+                ))}
+            </div>
             <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
         </div>
     );

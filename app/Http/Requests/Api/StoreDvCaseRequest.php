@@ -37,6 +37,10 @@ class StoreDvCaseRequest extends FormRequest
             'divorcer_photos.*' => ['file', 'image', 'max:5120'],
             'respondent_photos' => ['nullable', 'array', 'max:15'],
             'respondent_photos.*' => ['file', 'image', 'max:5120'],
+
+            // Khula's Court Decree — multiple images or PDFs, typically ~4.
+            'khula_documents' => ['nullable', 'array', 'max:10'],
+            'khula_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ];
     }
 }

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
-import { AddHearingForm, CaseDocumentButtons, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
+import { AddHearingForm, CaseDocumentButtons, KhulaDocumentsDisplay, PartyPhotosDisplay, ProceedingsList } from '../../components/CaseProceedings';
 import { APP_BASE_PATH } from '../../utils/basePath';
 import { setLastModule } from '../../utils/lastModule';
 import {
@@ -229,6 +229,7 @@ function CaseDetailModal({ caseId, onClose }) {
                         )}
                     </div>
 
+                    <KhulaDocumentsDisplay documents={c.khula_documents} />
                     <PartyPhotosDisplay
                         divorcerPhotos={c.divorcer_photos}
                         respondentPhotos={c.respondent_photos}

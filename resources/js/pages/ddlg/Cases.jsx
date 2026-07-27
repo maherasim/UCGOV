@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
-import { PartyPhotosDisplay } from '../../components/CaseProceedings';
+import { KhulaDocumentsDisplay, PartyPhotosDisplay } from '../../components/CaseProceedings';
 import { setLastModule } from '../../utils/lastModule';
 import { Badge, Card, FullScreenSpinner, Modal, Select } from '../../components/ui';
 
@@ -50,6 +50,7 @@ function CaseDetailModal({ caseId, onClose }) {
                         </div>
                     </div>
 
+                    <KhulaDocumentsDisplay documents={c.khula_documents} />
                     <PartyPhotosDisplay
                         divorcerPhotos={c.divorcer_photos}
                         respondentPhotos={c.respondent_photos}

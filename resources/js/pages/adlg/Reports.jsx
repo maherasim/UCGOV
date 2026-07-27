@@ -275,6 +275,7 @@ function ManageReportFieldsModal({ open, onClose }) {
         queryKey: ['adlg-report-fields'],
         queryFn: () => client.get('/api/adlg/report-fields').then((r) => r.data.data),
         enabled: open,
+        initialData: [],
     });
 
     const addMutation = useMutation({

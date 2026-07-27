@@ -93,4 +93,9 @@ class DvCase extends Model
     {
         return $this->hasMany(DvCasePartyPhoto::class);
     }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(DvCaseDocument::class);
+    }
 }

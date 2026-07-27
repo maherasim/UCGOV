@@ -17,6 +17,7 @@ use App\Models\CaseNotification;
 use App\Models\CaseProceeding;
 use App\Models\CaseTimelineEvent;
 use App\Models\DvCase;
+use App\Models\DvCaseDocument;
 use App\Models\DvCasePartyPhoto;
 use App\Support\Concerns\StylesExcelSheets;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -59,7 +60,7 @@ class DvCaseController extends Controller
         $this->authorizeOwnTehsil($request, $case);
 
         return new DvCaseResource(
-            $case->load(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos'])
+            $case->load(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos', 'documents'])
         );
     }
 
@@ -86,7 +87,7 @@ class DvCaseController extends Controller
         $this->authorizeOwnDistrict($request, $case);
 
         return new DvCaseResource(
-            $case->load(['unionCouncil.tehsil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos'])
+            $case->load(['unionCouncil.tehsil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos', 'documents'])
         );
     }
 
@@ -249,7 +250,7 @@ class DvCaseController extends Controller
         $this->authorizeOwnUc($request, $case);
 
         return new DvCaseResource(
-            $case->load(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos'])
+            $case->load(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos', 'documents'])
         );
     }
 
@@ -261,20 +262,22 @@ class DvCaseController extends Controller
         $attachmentPath = $request->hasFile('attachment')
             ? $request->file('attachment')->store('case-attachments', 'public')
             : null;
+        $hasKhulaDocuments = count($request->file('khula_documents', [])) > 0;
 
-        $case = DB::transaction(function () use ($request, $user, $uc, $attachmentPath) {
+        $case = DB::transaction(function () use ($request, $user, $uc, $attachmentPath, $hasKhulaDocuments) {
             $case = DvCase::create([
-                ...collect($request->validated())->except(['attachment', 'divorcer_photos', 'respondent_photos'])->all(),
+                ...collect($request->validated())->except(['attachment', 'divorcer_photos', 'respondent_photos', 'khula_documents'])->all(),
                 'status' => 'SUBMITTED',
                 'union_council_id' => $uc->id,
                 'secretary_id' => $user->id,
                 'adlg_id' => optional($uc->tehsil->adlgProfiles()->first())->user_id,
-                'attachment_ok' => $attachmentPath !== null,
+                'attachment_ok' => $attachmentPath !== null || $hasKhulaDocuments,
                 'attachment_path' => $attachmentPath,
             ]);
 
             $this->storePartyPhotos($case, $request, 'divorcer');
             $this->storePartyPhotos($case, $request, 'respondent');
+            $this->storeKhulaDocuments($case, $request);
 
             CaseTimelineEvent::create([
                 'dv_case_id' => $case->id,
@@ -305,7 +308,7 @@ class DvCaseController extends Controller
             return $case;
         });
 
-        return new DvCaseResource($case->load(['unionCouncil', 'secretary', 'partyPhotos']));
+        return new DvCaseResource($case->load(['unionCouncil', 'secretary', 'partyPhotos', 'documents']));
     }
 
     protected function storePartyPhotos(DvCase $case, Request $request, string $party): void
@@ -315,6 +318,18 @@ class DvCaseController extends Controller
             DvCasePartyPhoto::create([
                 'dv_case_id' => $case->id,
                 'party' => $party,
+                'file_path' => $path,
+                'uploaded_at' => now(),
+            ]);
+        }
+    }
+
+    protected function storeKhulaDocuments(DvCase $case, Request $request): void
+    {
+        foreach ($request->file('khula_documents', []) as $file) {
+            $path = $file->store('case-attachments', 'public');
+            DvCaseDocument::create([
+                'dv_case_id' => $case->id,
                 'file_path' => $path,
                 'uploaded_at' => now(),
             ]);
@@ -457,13 +472,13 @@ class DvCaseController extends Controller
             return $proceeding;
         });
 
-        return new DvCaseResource($case->fresh(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos']));
+        return new DvCaseResource($case->fresh(['unionCouncil', 'secretary', 'adlg', 'notice', 'arbitration', 'decision', 'timeline.actor', 'proceedings.recorder', 'partyPhotos', 'documents']));
     }
 
     public function notesheet(Request $request, DvCase $case)
     {
         $this->authorizeAccess($request, $case);
-        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'decision', 'partyPhotos']);
+        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'decision', 'partyPhotos', 'documents']);
 
         $deadline = \Illuminate\Support\Carbon::parse($case->receipt_date)->addDays(90)->startOfDay();
         $daysRemaining = (int) ceil(($deadline->timestamp - \Illuminate\Support\Carbon::today()->timestamp) / 86400);
@@ -486,7 +501,7 @@ class DvCaseController extends Controller
     public function fullCaseFile(Request $request, DvCase $case)
     {
         $this->authorizeAccess($request, $case);
-        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'arbitration', 'decision', 'partyPhotos']);
+        $case->load(['unionCouncil.tehsil.district', 'timeline.actor', 'proceedings.recorder', 'arbitration', 'decision', 'partyPhotos', 'documents']);
 
         $statusLabel = DvCaseResource::STATUS_LABELS[$case->status] ?? $case->status;
 

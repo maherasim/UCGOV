@@ -64,6 +64,9 @@ class DvCaseResource extends JsonResource
                 ->where('party', 'respondent')
                 ->map(fn ($p) => Storage::disk('public')->url($p->file_path))
                 ->values()),
+            'khula_documents' => $this->whenLoaded('documents', fn () => $this->documents
+                ->map(fn ($d) => Storage::disk('public')->url($d->file_path))
+                ->values()),
             'remarks' => $this->remarks,
             // Note: PHP's `&&` always coerces to bool (unlike JS's value-preserving short-circuit) —
             // ternaries here are required to actually return the array instead of `true`/`false`.
