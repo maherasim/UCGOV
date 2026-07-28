@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
+use App\Models\CaseNotification;
 use App\Models\DeviceToken;
+use App\Models\UnionCouncil;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Factory;
@@ -63,6 +66,44 @@ class PushNotificationService
                 'title' => $title,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Shared "something's wrong with this secretary's field presence" alert —
+     * used by geofence/location-disabled reporting (AttendanceController) and
+     * the silent-secretary staleness check (CheckSilentSecretaries command).
+     * Writes a CaseNotification + AuditLog and pushes the tehsil's ADLG.
+     */
+    public function notifyAdlgAboutSecretary(User $secretary, ?UnionCouncil $uc, string $message, string $type): void
+    {
+        if (! $uc) {
+            return;
+        }
+
+        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
+        if (! $adlgId) {
+            return;
+        }
+
+        CaseNotification::create([
+            'to_user_id' => $adlgId,
+            'from_user_id' => $secretary->id,
+            'type' => $type,
+            'message' => "\u{1F4CD} {$message}",
+        ]);
+
+        AuditLog::create([
+            'user_id' => $secretary->id,
+            'action' => $type,
+            'entity_type' => 'SecretaryProfile',
+            'entity_id' => $secretary->secretaryProfile->id,
+            'note' => $message,
+        ]);
+
+        $adlg = User::find($adlgId);
+        if ($adlg) {
+            $this->sendToUser($adlg, 'Field alert', $message, ['type' => $type]);
         }
     }
 }

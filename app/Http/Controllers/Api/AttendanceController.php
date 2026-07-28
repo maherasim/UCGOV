@@ -341,15 +341,17 @@ class AttendanceController extends Controller
             'live_updated_at' => now(),
             'location_disabled_since' => null,
             'outside_geofence_since' => $insideGeofence ? null : ($profile->outside_geofence_since ?? now()),
+            // A ping arriving at all proves this secretary isn't silent —
+            // clears any standing staleness alert (see CheckSilentSecretaries).
+            'silent_alert_sent_at' => null,
         ]);
 
         if ($isNewViolation) {
-            $this->alertAdlgOfSecretaryIssue(
+            $push->notifyAdlgAboutSecretary(
                 $user,
                 $uc,
                 "{$user->name} appears to be outside {$uc->name}'s boundary (approx. {$distance}m away).",
                 'GEOFENCE_VIOLATION',
-                $push,
             );
         }
 
@@ -379,48 +381,15 @@ class AttendanceController extends Controller
         $profile->update(['location_disabled_since' => $profile->location_disabled_since ?? now()]);
 
         if ($isNewReport) {
-            $this->alertAdlgOfSecretaryIssue(
+            $push->notifyAdlgAboutSecretary(
                 $user,
                 $uc,
                 "{$user->name} has turned off their device location.",
                 'LOCATION_DISABLED',
-                $push,
             );
         }
 
         return response()->noContent();
-    }
-
-    protected function alertAdlgOfSecretaryIssue(User $user, ?UnionCouncil $uc, string $message, string $type, PushNotificationService $push): void
-    {
-        if (! $uc) {
-            return;
-        }
-
-        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
-        if (! $adlgId) {
-            return;
-        }
-
-        CaseNotification::create([
-            'to_user_id' => $adlgId,
-            'from_user_id' => $user->id,
-            'type' => $type,
-            'message' => "\u{1F4CD} {$message}",
-        ]);
-
-        AuditLog::create([
-            'user_id' => $user->id,
-            'action' => $type,
-            'entity_type' => 'SecretaryProfile',
-            'entity_id' => $user->secretaryProfile->id,
-            'note' => $message,
-        ]);
-
-        $adlg = User::find($adlgId);
-        if ($adlg) {
-            $push->sendToUser($adlg, 'Field alert', $message, ['type' => $type]);
-        }
     }
 
     /**
