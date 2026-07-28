@@ -15,6 +15,7 @@ use App\Models\MovementLog;
 use App\Models\SecretaryProfile;
 use App\Models\UnionCouncil;
 use App\Models\User;
+use App\Services\PushNotificationService;
 use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -309,33 +310,117 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Secretary-side location ping, sent periodically while the Attendance page is open
-     * during working hours. Mirrors the prototype's watchPosition callback: stores the
-     * latest position for the ADLG's live map and reports whether the secretary has
-     * stepped outside their UC's geofence, so the frontend can prompt for a movement reason.
+     * Secretary-side location ping, sent periodically (foreground or the mobile
+     * app's background service) — stores the latest position for the ADLG's live
+     * map/feed and reports whether the secretary has stepped outside their UC's
+     * geofence. A successful ping also clears any standing "location disabled"
+     * flag (see reportLocationDisabled()) since it proves GPS is working again.
+     *
+     * Alerts (to both the secretary's own device, via the response, and their
+     * ADLG, via push) fire only on the *transition* into "outside geofence" —
+     * see outside_geofence_since — not on every repeat ping while it persists,
+     * and are skipped entirely on Sundays (the platform's one off-day).
      */
-    public function updateLiveLocation(UpdateLiveLocationRequest $request)
+    public function updateLiveLocation(UpdateLiveLocationRequest $request, PushNotificationService $push)
     {
         $user = $request->user();
         $profile = $user->secretaryProfile;
         $uc = $profile->unionCouncil;
+
+        $distance = ($uc && $uc->lat && $uc->lng)
+            ? $this->distanceMeters((float) $uc->lat, (float) $uc->lng, $request->float('lat'), $request->float('lng'))
+            : null;
+        $insideGeofence = $distance === null || $distance <= $uc->geofence_radius;
+        $isWorkingDay = now()->dayOfWeek !== 0;
+        $isNewViolation = $isWorkingDay && ! $insideGeofence && $profile->outside_geofence_since === null;
 
         $profile->update([
             'live_lat' => $request->float('lat'),
             'live_lng' => $request->float('lng'),
             'live_accuracy_meters' => $request->input('accuracy'),
             'live_updated_at' => now(),
+            'location_disabled_since' => null,
+            'outside_geofence_since' => $insideGeofence ? null : ($profile->outside_geofence_since ?? now()),
         ]);
 
-        $distance = ($uc && $uc->lat && $uc->lng)
-            ? $this->distanceMeters((float) $uc->lat, (float) $uc->lng, $request->float('lat'), $request->float('lng'))
-            : null;
-        $insideGeofence = $distance === null || $distance <= $uc->geofence_radius;
+        if ($isNewViolation) {
+            $this->alertAdlgOfSecretaryIssue(
+                $user,
+                $uc,
+                "{$user->name} appears to be outside {$uc->name}'s boundary (approx. {$distance}m away).",
+                'GEOFENCE_VIOLATION',
+                $push,
+            );
+        }
 
         return response()->json([
             'inside_geofence' => $insideGeofence,
             'distance_meters' => $distance,
+            'is_new_violation' => $isNewViolation,
         ]);
+    }
+
+    /**
+     * Called by the mobile app the moment it detects the device's location
+     * services are switched off during working hours — the server can't detect
+     * this on its own (no ping arrives at all), so the client has to report it.
+     * Debounced the same way as the geofence alert: only the first report in a
+     * streak actually notifies the ADLG.
+     */
+    public function reportLocationDisabled(Request $request, PushNotificationService $push)
+    {
+        $user = $request->user();
+        $profile = $user->secretaryProfile;
+        $uc = $profile->unionCouncil;
+
+        $isWorkingDay = now()->dayOfWeek !== 0;
+        $isNewReport = $isWorkingDay && $profile->location_disabled_since === null;
+
+        $profile->update(['location_disabled_since' => $profile->location_disabled_since ?? now()]);
+
+        if ($isNewReport) {
+            $this->alertAdlgOfSecretaryIssue(
+                $user,
+                $uc,
+                "{$user->name} has turned off their device location.",
+                'LOCATION_DISABLED',
+                $push,
+            );
+        }
+
+        return response()->noContent();
+    }
+
+    protected function alertAdlgOfSecretaryIssue(User $user, ?UnionCouncil $uc, string $message, string $type, PushNotificationService $push): void
+    {
+        if (! $uc) {
+            return;
+        }
+
+        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
+        if (! $adlgId) {
+            return;
+        }
+
+        CaseNotification::create([
+            'to_user_id' => $adlgId,
+            'from_user_id' => $user->id,
+            'type' => $type,
+            'message' => "\u{1F4CD} {$message}",
+        ]);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => $type,
+            'entity_type' => 'SecretaryProfile',
+            'entity_id' => $user->secretaryProfile->id,
+            'note' => $message,
+        ]);
+
+        $adlg = User::find($adlgId);
+        if ($adlg) {
+            $push->sendToUser($adlg, 'Field alert', $message, ['type' => $type]);
+        }
     }
 
     /**

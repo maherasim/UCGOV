@@ -17,6 +17,8 @@ class SecretaryProfile extends Model
         'live_lng',
         'live_accuracy_meters',
         'live_updated_at',
+        'outside_geofence_since',
+        'location_disabled_since',
     ];
 
     protected function casts(): array
@@ -24,6 +26,8 @@ class SecretaryProfile extends Model
         return [
             'profile_completed_at' => 'datetime',
             'live_updated_at' => 'datetime',
+            'outside_geofence_since' => 'datetime',
+            'location_disabled_since' => 'datetime',
         ];
     }
 

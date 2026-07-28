@@ -238,6 +238,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/attendance', [AttendanceController::class, 'myHistory']);
         Route::post('/attendance/log-movement', [AttendanceController::class, 'logMovement']);
         Route::post('/attendance/live-location', [AttendanceController::class, 'updateLiveLocation']);
+        Route::post('/attendance/location-disabled', [AttendanceController::class, 'reportLocationDisabled']);
 
         Route::post('/reports', [DailyReportController::class, 'store']);
         Route::get('/reports', [DailyReportController::class, 'myHistory']);
