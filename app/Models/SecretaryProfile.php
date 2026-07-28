@@ -20,6 +20,7 @@ class SecretaryProfile extends Model
         'outside_geofence_since',
         'location_disabled_since',
         'silent_alert_sent_at',
+        'device_biometric_enrolled_at',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class SecretaryProfile extends Model
             'outside_geofence_since' => 'datetime',
             'location_disabled_since' => 'datetime',
             'silent_alert_sent_at' => 'datetime',
+            'device_biometric_enrolled_at' => 'datetime',
         ];
     }
 

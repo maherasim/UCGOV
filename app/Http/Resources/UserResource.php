@@ -40,6 +40,7 @@ class UserResource extends JsonResource
                 'geofence_set' => $this->secretaryProfile->unionCouncil
                     ? ($this->secretaryProfile->unionCouncil->lat !== null && $this->secretaryProfile->unionCouncil->lng !== null)
                     : null,
+                'device_biometric_enrolled' => $this->secretaryProfile->device_biometric_enrolled_at !== null,
                 'tehsil' => $this->secretaryProfile->unionCouncil?->relationLoaded('tehsil')
                     ? $this->secretaryProfile->unionCouncil->tehsil?->name
                     : null,

@@ -393,6 +393,34 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Mobile app's device-fingerprint registration — called once, right after
+     * a secretary's first login, when they successfully complete the app's
+     * "Register Fingerprint" screen. Separate from the `passkeys` table (real
+     * WebAuthn credentials the web app uses) — this just records that the
+     * app confirmed the device's own biometric sensor once, which is what
+     * every subsequent attendance mark-in's device_biometric_confirmed relies
+     * on actually meaning something. Idempotent — re-enrolling (new device,
+     * re-registering) just bumps the timestamp.
+     */
+    public function enrollBiometric(Request $request)
+    {
+        $user = $request->user();
+        $profile = $user->secretaryProfile;
+
+        $profile->update(['device_biometric_enrolled_at' => now()]);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'DEVICE_BIOMETRIC_ENROLLED',
+            'entity_type' => 'SecretaryProfile',
+            'entity_id' => $profile->id,
+            'note' => "{$user->name} registered their device fingerprint in the mobile app.",
+        ]);
+
+        return response()->noContent();
+    }
+
+    /**
      * ADLG-side live map feed — the prototype plots these as a simple relative scatter
      * (min/max lat/lng normalised to a percentage grid), not a real map tile layer, so this
      * just returns raw coordinates plus a "fresh" flag (updated in the last 5 minutes).
