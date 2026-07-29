@@ -9,6 +9,8 @@ use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\DailyReport;
 use App\Models\ReportFieldDefinition;
+use App\Models\User;
+use App\Services\PushNotificationService;
 use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +21,7 @@ class DailyReportController extends Controller
 {
     use StylesExcelSheets;
 
-    public function store(StoreDailyReportRequest $request)
+    public function store(StoreDailyReportRequest $request, PushNotificationService $push)
     {
         $user = $request->user();
         $uc = $user->secretaryProfile->unionCouncil;
@@ -74,12 +76,18 @@ class DailyReportController extends Controller
 
         $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
         if ($adlgId) {
+            $message = "{$user->name} submitted today's daily report for {$uc->name}.";
+
             CaseNotification::create([
                 'to_user_id' => $adlgId,
                 'from_user_id' => $user->id,
                 'type' => 'REPORT_SUBMITTED',
-                'message' => "{$user->name} submitted today's daily report for {$uc->name}.",
+                'message' => $message,
             ]);
+
+            if ($adlg = User::find($adlgId)) {
+                $push->sendToUser($adlg, 'Daily report submitted', $message, ['type' => 'REPORT_SUBMITTED']);
+            }
         }
 
         return new DailyReportResource($report->load(['secretary', 'unionCouncil.tehsil.district']));

@@ -103,7 +103,7 @@ function NewsletterCard({ n, onRespond }) {
                                 <span className="font-medium text-ink-muted">Office of the Super Admin</span>
                                 <span>·</span>
                                 <CalendarDaysIcon className="h-3.5 w-3.5" />
-                                <span>{new Date(n.published_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                <span>{new Date(n.published_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short', hour12: true })}</span>
                             </div>
                         </div>
                     </div>

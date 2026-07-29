@@ -13,12 +13,14 @@ class AdlgProfile extends Model
         'grade',
         'father_name',
         'profile_completed_at',
+        'last_analytics_download_at',
     ];
 
     protected function casts(): array
     {
         return [
             'profile_completed_at' => 'datetime',
+            'last_analytics_download_at' => 'datetime',
         ];
     }
 

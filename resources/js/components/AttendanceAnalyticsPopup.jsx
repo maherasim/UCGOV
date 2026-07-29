@@ -19,6 +19,9 @@ export default function AttendanceAnalyticsPopup() {
     useEffect(() => {
         const now = new Date();
         if (!WORK_DAYS.includes(now.getDay())) return undefined;
+        // Already downloaded today (this session or an earlier one, or via the
+        // mobile app's push reminder) — nothing left to nag about.
+        if (user?.adlg_profile?.analytics_downloaded_today) return undefined;
 
         const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 30, 0);
         const endOfWindow = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 0, 0);

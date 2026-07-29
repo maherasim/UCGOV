@@ -10,6 +10,7 @@ import {
     ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { timeAgo } from '../utils/timeAgo';
+import { formatDateTime } from '../utils/format';
 
 const ROLE_LABELS = {
     sa: 'Super Admin',
@@ -55,10 +56,10 @@ export default function ActivityTimeline({ events, maxHeight = 'max-h-96' }) {
                         </div>
                         <div className={`min-w-0 flex-1 ${isLast ? 'pb-1' : 'pb-5'}`}>
                             <div className="truncate text-sm font-medium text-ink">{e.note || e.action}</div>
-                            <div className="mt-0.5 text-xs text-ink-muted" title={new Date(e.created_at).toLocaleString('en-GB')}>
+                            <div className="mt-0.5 text-xs text-ink-muted" title={formatDateTime(e.created_at)}>
                                 {e.user || 'System'}
                                 {e.role && ` (${ROLE_LABELS[e.role] || e.role})`} ·{' '}
-                                {new Date(e.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                {formatDateTime(e.created_at)}
                                 {' '}
                                 <span className="text-ink-faint">({timeAgo(e.created_at)})</span>
                             </div>

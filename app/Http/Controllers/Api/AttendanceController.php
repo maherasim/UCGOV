@@ -186,7 +186,7 @@ class AttendanceController extends Controller
         return AttendanceRecordResource::collection($records);
     }
 
-    public function logMovement(LogMovementRequest $request)
+    public function logMovement(LogMovementRequest $request, PushNotificationService $push)
     {
         $user = $request->user();
         $uc = $user->secretaryProfile->unionCouncil;
@@ -195,10 +195,12 @@ class AttendanceController extends Controller
             ? $this->distanceMeters((float) $uc->lat, (float) $uc->lng, $request->float('lat'), $request->float('lng'))
             : 0;
 
+        $reason = $request->string('reason')->toString();
+
         $log = MovementLog::create([
             'secretary_id' => $user->id,
             'union_council_id' => $uc->id,
-            'reason' => $request->string('reason')->toString(),
+            'reason' => $reason,
             'details' => $request->input('details'),
             'distance_meters' => $distance,
             'occurred_at' => now(),
@@ -209,8 +211,29 @@ class AttendanceController extends Controller
             'action' => 'MOVEMENT_LOGGED',
             'entity_type' => 'MovementLog',
             'entity_id' => $log->id,
-            'note' => "{$user->name} logged movement ({$request->string('reason')})",
+            'note' => "{$user->name} logged movement ({$reason})",
         ]);
+
+        // Unlike geofence/location alerts this isn't "something's wrong" — it's a
+        // routine heads-up, so it's not debounced and doesn't touch secretary_profiles.
+        $adlgId = optional($uc->tehsil->adlgProfiles()->first())->user_id;
+        if ($adlgId) {
+            CaseNotification::create([
+                'to_user_id' => $adlgId,
+                'from_user_id' => $user->id,
+                'type' => 'MOVEMENT_LOGGED',
+                'message' => "\u{1F4CD} {$user->name} logged a movement: {$reason}.",
+            ]);
+
+            if ($adlg = User::find($adlgId)) {
+                $push->sendToUser(
+                    $adlg,
+                    'Movement logged',
+                    "{$user->name} logged a movement: {$reason}.",
+                    ['type' => 'MOVEMENT_LOGGED'],
+                );
+            }
+        }
 
         return new MovementLogResource($log->load(['secretary', 'unionCouncil']));
     }
@@ -461,6 +484,11 @@ class AttendanceController extends Controller
     public function analyticsExportForAdlg(Request $request)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
+
+        // Marks today's "please download attendance" nag (web popup + the
+        // 10:30-onward push reminder) as satisfied — see
+        // SendAttendanceAnalyticsReminder and UserResource's adlg_profile block.
+        $request->user()->adlgProfile->update(['last_analytics_download_at' => now()]);
 
         $from = $request->filled('from') ? $request->date('from') : Carbon::today();
         $to = $request->filled('to') ? $request->date('to') : Carbon::today();

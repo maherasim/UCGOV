@@ -5,6 +5,7 @@ import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { useAuth } from '../../context/AuthContext';
 import { setLastModule } from '../../utils/lastModule';
+import { formatTime } from '../../utils/format';
 import { compressPhoto } from '../../utils/photoCapture';
 import { verifyFingerprint } from '../../utils/webauthn';
 import { Badge, Button, Card, ErrorText } from '../../components/ui';
@@ -128,7 +129,7 @@ export default function Attendance() {
                         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
                             <div className="rounded-lg border border-border px-4 py-2">
                                 <div className="text-[10px] font-bold uppercase text-ink-muted">Check-in</div>
-                                <div className="text-sm font-semibold text-ink">{todayRecord.check_in_time?.slice(0, 5)}</div>
+                                <div className="text-sm font-semibold text-ink">{formatTime(todayRecord.check_in_time)}</div>
                             </div>
                             <div className="rounded-lg border border-border px-4 py-2">
                                 <div className="text-[10px] font-bold uppercase text-ink-muted">Geofence</div>
@@ -192,7 +193,7 @@ export default function Attendance() {
                     data={data}
                     columns={[
                         { title: 'Date', data: 'attendance_date' },
-                        { title: 'Check-in', data: 'check_in_time' },
+                        { title: 'Check-in', data: 'check_in_time', render: (t) => formatTime(t) },
                         { title: 'Status', data: 'status' },
                         { title: 'Geofence', data: 'inside_geofence' },
                     ]}

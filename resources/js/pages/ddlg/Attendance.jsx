@@ -11,6 +11,7 @@ import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { APP_BASE_PATH } from '../../utils/basePath';
 import { setLastModule } from '../../utils/lastModule';
+import { formatDateTime, formatTime } from '../../utils/format';
 import { Badge, Button, Card, FullScreenSpinner, KpiCard, Modal, Select, TextInput } from '../../components/ui';
 
 const emptyFilters = { union_council_id: '', from: '', to: '' };
@@ -150,7 +151,7 @@ export default function Attendance() {
                                     { title: 'Date', data: 'attendance_date' },
                                     { title: 'Secretary', data: 'secretary' },
                                     { title: 'UC', data: 'union_council' },
-                                    { title: 'Check-in', data: 'check_in_time' },
+                                    { title: 'Check-in', data: 'check_in_time', render: (t) => formatTime(t) },
                                     { title: 'Status', data: 'status' },
                                     { title: 'Geofence', data: 'inside_geofence' },
                                     { title: 'Fingerprint', data: 'biometric_verified' },
@@ -205,7 +206,7 @@ export default function Attendance() {
                             <DataTable
                                 data={movement.data}
                                 columns={[
-                                    { title: 'Date', data: 'occurred_at' },
+                                    { title: 'Date', data: 'occurred_at', render: (v) => formatDateTime(v) },
                                     { title: 'Secretary', data: 'secretary' },
                                     { title: 'UC', data: 'union_council' },
                                     { title: 'Reason', data: 'reason' },

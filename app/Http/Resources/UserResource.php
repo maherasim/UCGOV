@@ -27,6 +27,7 @@ class UserResource extends JsonResource
                 'tehsil_id' => $this->adlgProfile->tehsil_id,
                 'tehsil' => $this->whenLoaded('adlgProfile', fn () => $this->adlgProfile->tehsil?->name),
                 'grade' => $this->adlgProfile->grade,
+                'analytics_downloaded_today' => (bool) $this->adlgProfile->last_analytics_download_at?->isToday(),
             ]),
             'ddlg_profile' => $this->whenLoaded('ddlgProfile', fn () => [
                 'district_id' => $this->ddlgProfile->district_id,

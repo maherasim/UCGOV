@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Requires the server's real cron to run `php artisan schedule:run` every
         // minute — see the deploy notes; this alone does nothing without that.
         $schedule->command('attendance:send-reminders')->dailyAt('09:10')->timezone('Asia/Karachi');
+        $schedule->command('attendance:send-analytics-reminder')->everyTenMinutes()->between('10:30', '17:00')->timezone('Asia/Karachi');
         // TESTING: every minute to match the 1-minute threshold — switch back to
         // everyFiveMinutes() when CheckSilentSecretaries::SILENCE_THRESHOLD_MINUTES goes back to 5.
         $schedule->command('attendance:check-silent-secretaries')->everyMinute()->between('09:00', '17:00')->timezone('Asia/Karachi');

@@ -163,7 +163,7 @@ function ResponsesModal({ newsletter, onClose }) {
                             </div>
                             {r.remarks && <p className="mt-2 text-xs italic text-ink-muted">&ldquo;{r.remarks}&rdquo;</p>}
                             <div className="mt-2 text-[11px] text-ink-faint">
-                                {new Date(r.responded_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })}
+                                {new Date(r.responded_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short', hour12: true })}
                             </div>
                         </div>
                     ))}
@@ -198,7 +198,7 @@ function NewsletterCard({ n, totalAdlgs, onViewResponses }) {
                                 <span className="font-medium text-ink-muted">Published to all ADLGs</span>
                                 <span>·</span>
                                 <CalendarDaysIcon className="h-3.5 w-3.5" />
-                                <span>{new Date(n.published_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                <span>{new Date(n.published_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short', hour12: true })}</span>
                             </div>
                         </div>
                     </div>
