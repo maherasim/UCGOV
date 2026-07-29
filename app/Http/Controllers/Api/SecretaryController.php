@@ -39,6 +39,36 @@ class SecretaryController extends Controller
     }
 
     /**
+     * Searchable, paginated own-tehsil listing for ADLG — used by the "Reset Secretary
+     * Password" section on their Profile page. Separate from index() (which still returns
+     * the full unpaginated set for the Secretaries management page's client-side table)
+     * so that page's existing behavior isn't disturbed.
+     */
+    public function indexPaginatedForAdlg(Request $request)
+    {
+        $tehsilId = $request->user()->adlgProfile->tehsil_id;
+
+        $query = User::where('role', 'sec')
+            ->whereHas('secretaryProfile.unionCouncil', fn ($q) => $q->where('tehsil_id', $tehsilId))
+            ->with(['secretaryProfile.unionCouncil']);
+
+        if ($request->filled('search')) {
+            $search = $request->string('search')->toString();
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%")
+                    ->orWhere('cnic', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhereHas('secretaryProfile.unionCouncil', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $perPage = min($request->integer('per_page', 10), 100);
+
+        return UserResource::collection($query->orderBy('name')->paginate($perPage));
+    }
+
+    /**
      * Read-only, own-district view for DDLG — every secretary across every tehsil/UC
      * in their district.
      */

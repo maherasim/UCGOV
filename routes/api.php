@@ -120,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/union-councils/{unionCouncil}', [UnionCouncilController::class, 'update']);
 
         Route::get('/secretaries', [SecretaryController::class, 'index']);
+        Route::get('/secretaries-paginated', [SecretaryController::class, 'indexPaginatedForAdlg']);
         Route::get('/secretaries-export', [SecretaryController::class, 'export']);
         Route::post('/secretaries', [SecretaryController::class, 'store']);
         Route::put('/secretaries/{secretary}', [SecretaryController::class, 'update']);
