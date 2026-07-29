@@ -30,6 +30,14 @@ class PushNotificationService
         $tokens = DeviceToken::where('user_id', $user->id)->pluck('token', 'id');
 
         if ($tokens->isEmpty()) {
+            // Previously a silent no-op — the caller's CaseNotification/AuditLog still
+            // gets written (so it shows up fine on the web app), which made "no push
+            // arrived" look identical to "push failed" with zero trace either way.
+            Log::info('[PushNotificationService] No registered device token for user — skipping push.', [
+                'user_id' => $user->id,
+                'title' => $title,
+            ]);
+
             return;
         }
 
@@ -53,6 +61,20 @@ class PushNotificationService
                 ->withData(array_map('strval', $data));
 
             $report = $messaging->sendMulticast($message, $tokens->values()->all());
+
+            // Previously silent on success too — meant "nothing in the log" was
+            // ambiguous between "worked fine" and "never actually ran".
+            Log::info('[PushNotificationService] Push send attempt complete.', [
+                'user_id' => $user->id,
+                'title' => $title,
+                'tokens' => $tokens->count(),
+                'successes' => $report->successes()->count(),
+                'failures' => $report->failures()->count(),
+                'failure_reasons' => array_values(array_filter(array_map(
+                    fn ($item) => $item->error()?->getMessage(),
+                    $report->failures()->getItems()
+                ))),
+            ]);
 
             // Prune tokens FCM says are dead — keeps the table from accumulating
             // stale entries for uninstalled apps / reissued tokens.

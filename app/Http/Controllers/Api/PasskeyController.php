@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Laravel\Passkeys\Actions\GenerateRegistrationOptions;
 use Laravel\Passkeys\Actions\StorePasskey;
 use Laravel\Passkeys\Http\Requests\PasskeyRegistrationRequest;
+use Laravel\Passkeys\Passkey;
 use Laravel\Passkeys\Support\WebAuthn;
 
 /**
@@ -69,11 +70,16 @@ class PasskeyController extends Controller
         ]);
     }
 
-    public function destroy(Request $request, int $passkey)
+    public function destroy(Request $request, Passkey $passkey)
     {
         $user = $request->user();
-        $target = $user->passkeys()->findOrFail($passkey);
-        $target->delete();
+
+        // The package's own route-model binding resolves {passkey} globally
+        // (any user's row), so ownership has to be checked here explicitly —
+        // 404 rather than 403 to avoid confirming another user's passkey ID exists.
+        abort_unless($passkey->user_id === $user->id, 404);
+
+        $passkey->delete();
 
         if (! $user->hasPasskeysEnabled()) {
             $user->forceFill(['bio_enrolled' => false])->save();
@@ -84,7 +90,7 @@ class PasskeyController extends Controller
             'action' => 'FINGERPRINT_REMOVED',
             'entity_type' => 'User',
             'entity_id' => $user->id,
-            'note' => "{$user->name} removed a biometric credential ({$target->name})",
+            'note' => "{$user->name} removed a biometric credential ({$passkey->name})",
         ]);
 
         return response()->noContent();
