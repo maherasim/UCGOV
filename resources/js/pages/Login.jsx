@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Button, ErrorText, Field, TextInput } from '../components/ui';
+import { Button, ErrorText, Field, PasswordInput, TextInput } from '../components/ui';
 import { APP_BASE_PATH } from '../utils/basePath';
 
 const ROLE_HOME = {
@@ -57,8 +57,7 @@ export default function Login() {
                         />
                     </Field>
                     <Field label="Password">
-                        <TextInput
-                            type="password"
+                        <PasswordInput
                             value={form.password}
                             onChange={(e) => setForm({ ...form, password: e.target.value })}
                             placeholder="••••••••"
