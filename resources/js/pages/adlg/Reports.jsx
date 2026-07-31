@@ -1,26 +1,38 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, EyeIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, EyeIcon, PaperClipIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import client from '../../api/client';
 import DataTable from '../../components/DataTable';
 import { APP_BASE_PATH } from '../../utils/basePath';
 import { setLastModule } from '../../utils/lastModule';
-import { Badge, Button, Card, EmptyState, ErrorText, Field, FileInput, FullScreenSpinner, Modal, Select, TextInput, Textarea } from '../../components/ui';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorText, Field, FileInput, FullScreenSpinner, Modal, Select, TextInput, Textarea } from '../../components/ui';
 
 const FIELD_TYPES = ['text', 'number', 'date'];
+const emptyPerformaForm = { title: '', description: '', mode: 'form', report_type: 'onetime', deadline: '' };
 
-function CreatePerformaModal({ open, onClose }) {
+/** Create + edit share one modal — mode is fixed once created (matches the
+ * backend, which rejects changing it), so it's a Select on create only. */
+function PerformaFormModal({ open, onClose, performa }) {
     const queryClient = useQueryClient();
-    const emptyForm = { title: '', description: '', mode: 'form', report_type: 'onetime', deadline: '' };
-    const [form, setForm] = useState(emptyForm);
-    const [fields, setFields] = useState([{ label: '', type: 'text' }]);
+    const isEdit = !!performa;
+    const [form, setForm] = useState(
+        isEdit
+            ? {
+                  title: performa.title || '',
+                  description: performa.description || '',
+                  mode: performa.mode,
+                  report_type: performa.report_type,
+                  deadline: performa.deadline ? performa.deadline.slice(0, 10) : '',
+              }
+            : emptyPerformaForm
+    );
+    const [fields, setFields] = useState(
+        isEdit && performa.fields?.length ? performa.fields.map((f) => ({ label: f.label, type: f.type })) : [{ label: '', type: 'text' }]
+    );
     const [template, setTemplate] = useState(null);
     const [error, setError] = useState('');
 
     const close = () => {
-        setForm(emptyForm);
-        setFields([{ label: '', type: 'text' }]);
-        setTemplate(null);
         setError('');
         onClose();
     };
@@ -32,7 +44,7 @@ function CreatePerformaModal({ open, onClose }) {
             const formData = new FormData();
             formData.append('title', form.title);
             if (form.description) formData.append('description', form.description);
-            formData.append('mode', form.mode);
+            if (!isEdit) formData.append('mode', form.mode);
             formData.append('report_type', form.report_type);
             if (form.deadline) formData.append('deadline', form.deadline);
             if (form.mode === 'excel' && template) formData.append('excel_template', template);
@@ -44,17 +56,28 @@ function CreatePerformaModal({ open, onClose }) {
                         formData.append(`fields[${i}][type]`, f.type);
                     });
             }
+            if (isEdit) {
+                // Laravel doesn't parse multipart bodies on a real PUT — spoof it
+                // via _method so the optional template re-upload still works.
+                formData.append('_method', 'PUT');
+                return client.post(`/api/adlg/performas/${performa.id}`, formData);
+            }
             return client.post('/api/adlg/performas', formData);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adlg-performas'] });
             close();
         },
-        onError: (err) => setError(err.response?.data?.message || 'Could not publish performa.'),
+        onError: (err) => setError(err.response?.data?.message || `Could not ${isEdit ? 'update' : 'publish'} performa.`),
     });
 
     return (
-        <Modal open={open} onClose={close} title="Create Performa" subtitle="Publish to all secretaries in your tehsil">
+        <Modal
+            open={open}
+            onClose={close}
+            title={isEdit ? 'Edit Performa' : 'Create Performa'}
+            subtitle={isEdit ? performa?.title : 'Publish to all secretaries in your tehsil'}
+        >
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
@@ -70,10 +93,16 @@ function CreatePerformaModal({ open, onClose }) {
                 </Field>
                 <div className="mb-3 grid grid-cols-2 gap-3">
                     <Field label="Mode">
-                        <Select value={form.mode} onChange={set('mode')}>
-                            <option value="form">In-app Form</option>
-                            <option value="excel">Excel Template</option>
-                        </Select>
+                        {isEdit ? (
+                            <div className="flex h-full items-center">
+                                <Badge tone="info">{form.mode === 'excel' ? 'Excel Template' : 'In-app Form'}</Badge>
+                            </div>
+                        ) : (
+                            <Select value={form.mode} onChange={set('mode')}>
+                                <option value="form">In-app Form</option>
+                                <option value="excel">Excel Template</option>
+                            </Select>
+                        )}
                     </Field>
                     <Field label="Frequency">
                         <Select value={form.report_type} onChange={set('report_type')}>
@@ -129,16 +158,68 @@ function CreatePerformaModal({ open, onClose }) {
                         </button>
                     </div>
                 ) : (
-                    <Field label="Excel Template">
-                        <FileInput value={template} onChange={setTemplate} accept=".xlsx,.xls,.csv" hint="Excel · CSV" required />
+                    <Field label={isEdit ? 'Replace Excel Template (optional)' : 'Excel Template'}>
+                        <FileInput value={template} onChange={setTemplate} accept=".xlsx,.xls,.csv" hint="Excel · CSV" required={!isEdit} />
+                        {isEdit && !template && (
+                            <p className="mt-1 text-xs text-ink-faint">
+                                {performa.has_template ? 'Leave blank to keep the current template.' : 'No template attached yet.'}
+                            </p>
+                        )}
                     </Field>
                 )}
 
                 <ErrorText>{error}</ErrorText>
                 <Button type="submit" className="mt-2 w-full" disabled={mutation.isPending}>
-                    {mutation.isPending ? 'Publishing…' : 'Publish to All Secretaries →'}
+                    {mutation.isPending ? (isEdit ? 'Saving…' : 'Publishing…') : isEdit ? 'Save Changes' : 'Publish to All Secretaries →'}
                 </Button>
             </form>
+        </Modal>
+    );
+}
+
+function PerformaDetailModal({ performa, onClose }) {
+    return (
+        <Modal open={!!performa} onClose={onClose} title={performa?.title} subtitle="Performa details">
+            {performa && (
+                <div>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        <Badge tone="info">{performa.mode === 'excel' ? 'Excel Template' : 'In-app Form'}</Badge>
+                        <Badge tone={performa.report_type === 'daily' ? 'warning' : 'neutral'}>
+                            {performa.report_type === 'daily' ? 'Daily' : 'One-time'}
+                        </Badge>
+                        {performa.deadline && <Badge tone="neutral">Due {performa.deadline.slice(0, 10)}</Badge>}
+                    </div>
+
+                    {performa.description && (
+                        <div className="mb-3 rounded-xl bg-surface-subtle p-3">
+                            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">Description</div>
+                            <p className="text-xs text-ink">{performa.description}</p>
+                        </div>
+                    )}
+
+                    {performa.mode === 'form' ? (
+                        <div className="mb-3 rounded-xl border border-border p-3">
+                            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">
+                                Fields ({performa.fields?.length || 0})
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {performa.fields?.map((f) => (
+                                    <div key={f.id} className="rounded-lg bg-surface-subtle px-2.5 py-1.5">
+                                        <div className="text-[9px] uppercase text-ink-faint">{f.type}</div>
+                                        <div className="text-xs font-bold text-ink">{f.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="mb-3 rounded-xl border border-border p-3 text-xs text-ink">
+                            {performa.has_template ? '📊 Excel template attached' : 'No template attached'}
+                        </div>
+                    )}
+
+                    <div className="text-xs text-ink-muted">{performa.responses_count ?? 0} response(s) so far</div>
+                </div>
+            )}
         </Modal>
     );
 }
@@ -201,7 +282,7 @@ function ResponsesModal({ performa, onClose }) {
     );
 }
 
-function PerformaCard({ performa, totalSecretaries, onViewResponses }) {
+function PerformaCard({ performa, totalSecretaries, onViewResponses, onViewDetails, onEdit, onDelete }) {
     return (
         <Card className="p-4">
             <div className="flex items-start justify-between gap-3">
@@ -224,12 +305,41 @@ function PerformaCard({ performa, totalSecretaries, onViewResponses }) {
                     {performa.responses_count}/{totalSecretaries} responded →
                 </button>
             </div>
+            <div className="mt-3 flex justify-end gap-1 border-t border-border pt-2">
+                <button
+                    onClick={() => onViewDetails(performa)}
+                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                    aria-label="View Details"
+                    title="View Details"
+                >
+                    <EyeIcon className="h-4 w-4" />
+                </button>
+                <button
+                    onClick={() => onEdit(performa)}
+                    className="rounded-lg p-1.5 text-ink-muted hover:bg-primary-50 hover:text-primary-600"
+                    aria-label="Edit"
+                    title="Edit"
+                >
+                    <PencilSquareIcon className="h-4 w-4" />
+                </button>
+                <button
+                    onClick={() => onDelete(performa)}
+                    className="rounded-lg p-1.5 text-ink-muted hover:bg-danger/10 hover:text-danger"
+                    aria-label="Delete"
+                    title="Delete"
+                >
+                    <TrashIcon className="h-4 w-4" />
+                </button>
+            </div>
         </Card>
     );
 }
 
 function PerformasTab() {
-    const [createOpen, setCreateOpen] = useState(false);
+    const queryClient = useQueryClient();
+    const [formTarget, setFormTarget] = useState(null);
+    const [detailTarget, setDetailTarget] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
     const [viewing, setViewing] = useState(null);
 
     const { data, isLoading } = useQuery({
@@ -237,12 +347,20 @@ function PerformasTab() {
         queryFn: () => client.get('/api/adlg/performas').then((r) => r.data),
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: (id) => client.delete(`/api/adlg/performas/${id}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adlg-performas'] });
+            setDeleteTarget(null);
+        },
+    });
+
     if (isLoading) return <FullScreenSpinner />;
 
     return (
         <div>
             <div className="mb-4 flex justify-end">
-                <Button onClick={() => setCreateOpen(true)}>+ Performa</Button>
+                <Button onClick={() => setFormTarget({})}>+ Performa</Button>
             </div>
 
             {!data.data.length ? (
@@ -250,13 +368,41 @@ function PerformasTab() {
             ) : (
                 <div className="space-y-3">
                     {data.data.map((p) => (
-                        <PerformaCard key={p.id} performa={p} totalSecretaries={data.meta.total_secretaries} onViewResponses={setViewing} />
+                        <PerformaCard
+                            key={p.id}
+                            performa={p}
+                            totalSecretaries={data.meta.total_secretaries}
+                            onViewResponses={setViewing}
+                            onViewDetails={setDetailTarget}
+                            onEdit={setFormTarget}
+                            onDelete={setDeleteTarget}
+                        />
                     ))}
                 </div>
             )}
 
-            <CreatePerformaModal open={createOpen} onClose={() => setCreateOpen(false)} />
+            <PerformaFormModal
+                key={formTarget?.id || 'new'}
+                open={!!formTarget}
+                performa={formTarget?.id ? formTarget : null}
+                onClose={() => setFormTarget(null)}
+            />
+            <PerformaDetailModal performa={detailTarget} onClose={() => setDetailTarget(null)} />
             <ResponsesModal performa={viewing} onClose={() => setViewing(null)} />
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                title="Delete Performa"
+                message={
+                    deleteTarget
+                        ? `"${deleteTarget.title}" and all ${deleteTarget.responses_count ?? 0} secretary response(s) will be permanently deleted. This can't be undone.`
+                        : ''
+                }
+                confirmLabel="Delete"
+                pending={deleteMutation.isPending}
+                onCancel={() => setDeleteTarget(null)}
+                onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+            />
         </div>
     );
 }

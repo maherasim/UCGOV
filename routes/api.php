@@ -160,6 +160,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/performas', [PerformaController::class, 'indexForAdlg']);
         Route::post('/performas', [PerformaController::class, 'store']);
+        Route::put('/performas/{performa}', [PerformaController::class, 'update']);
+        Route::delete('/performas/{performa}', [PerformaController::class, 'destroy']);
         Route::get('/performas/{performa}/responses', [PerformaController::class, 'responses']);
         Route::get('/performas/{performa}/responses/export', [PerformaController::class, 'exportResponses']);
         Route::get('/performas/{performa}/template', [PerformaController::class, 'downloadTemplateForAdlg']);

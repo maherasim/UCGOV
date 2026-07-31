@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\RespondPerformaExcelRequest;
 use App\Http\Requests\Api\RespondPerformaFormRequest;
 use App\Http\Requests\Api\StorePerformaRequest;
+use App\Http\Requests\Api\UpdatePerformaRequest;
 use App\Models\AuditLog;
 use App\Models\CaseNotification;
 use App\Models\Performa;
@@ -102,6 +103,81 @@ class PerformaController extends Controller
         });
 
         return response()->json($this->performaArray($performa->load('fields')), 201);
+    }
+
+    public function update(UpdatePerformaRequest $request, Performa $performa)
+    {
+        $adlg = $request->user();
+        abort_unless($performa->tehsil_id === $adlg->adlgProfile->tehsil_id, 403);
+
+        DB::transaction(function () use ($request, $performa, $adlg) {
+            $performa->update([
+                'title' => $request->string('title')->toString(),
+                'description' => $request->input('description'),
+                'report_type' => $request->string('report_type')->toString(),
+                'deadline' => $request->input('deadline'),
+            ]);
+
+            if ($performa->mode === 'form' && $request->has('fields')) {
+                $performa->fields()->delete();
+                foreach ($request->input('fields') as $index => $field) {
+                    $performa->fields()->create([
+                        'label' => $field['label'],
+                        'type' => $field['type'],
+                        'sort_order' => $index,
+                    ]);
+                }
+            }
+
+            if ($performa->mode === 'excel' && $request->hasFile('excel_template')) {
+                if ($performa->excel_template_path) {
+                    Storage::disk('public')->delete($performa->excel_template_path);
+                }
+                $performa->update([
+                    'excel_template_path' => $request->file('excel_template')->store('performa-templates', 'public'),
+                ]);
+            }
+
+            AuditLog::create([
+                'user_id' => $adlg->id,
+                'action' => 'PERFORMA_UPDATED',
+                'entity_type' => 'Performa',
+                'entity_id' => $performa->id,
+                'note' => "{$adlg->name} updated performa \"{$performa->title}\"",
+            ]);
+        });
+
+        return response()->json(['data' => $this->performaArray($performa->fresh(['fields'])->loadCount('responses'))]);
+    }
+
+    public function destroy(Request $request, Performa $performa)
+    {
+        $adlg = $request->user();
+        abort_unless($performa->tehsil_id === $adlg->adlgProfile->tehsil_id, 403);
+
+        DB::transaction(function () use ($performa, $adlg) {
+            if ($performa->excel_template_path) {
+                Storage::disk('public')->delete($performa->excel_template_path);
+            }
+            foreach ($performa->responses as $response) {
+                if ($response->file_path) {
+                    Storage::disk('public')->delete($response->file_path);
+                }
+            }
+
+            AuditLog::create([
+                'user_id' => $adlg->id,
+                'action' => 'PERFORMA_DELETED',
+                'entity_type' => 'Performa',
+                'entity_id' => $performa->id,
+                'note' => "{$adlg->name} deleted performa \"{$performa->title}\"",
+            ]);
+
+            // Cascades to fields/responses/response_values via FK constraints.
+            $performa->delete();
+        });
+
+        return response()->json(['message' => 'Performa deleted.']);
     }
 
     public function responses(Request $request, Performa $performa)
