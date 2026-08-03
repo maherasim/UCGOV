@@ -25,8 +25,39 @@ class PushNotificationService
         return filled(config('services.firebase.project_id')) && is_file((string) config('services.firebase.credentials'));
     }
 
+    /**
+     * Mon–Sat, 9AM–5PM (app timezone, Asia/Karachi) — except Friday, which
+     * ends at 1PM (Jumma). No push goes out outside this window, full stop.
+     * Checked once here rather than in each caller so every push (current
+     * and future) is covered automatically. The underlying
+     * CaseNotification/AuditLog rows still get written by callers
+     * regardless — this only silences the disruptive phone alert, so the
+     * event is still visible in-app whenever the user next opens it.
+     */
+    public function isWithinBusinessHours(): bool
+    {
+        $now = now();
+
+        if (! in_array($now->dayOfWeek, [1, 2, 3, 4, 5, 6], true)) {
+            return false;
+        }
+
+        $closingHour = $now->dayOfWeek === 5 ? 13 : 17;
+
+        return $now->hour >= 9 && $now->hour < $closingHour;
+    }
+
     public function sendToUser(User $user, string $title, string $body, array $data = []): void
     {
+        if (! $this->isWithinBusinessHours()) {
+            Log::info('[PushNotificationService] Outside business hours (Mon–Sat, 9AM–5PM) — skipping push.', [
+                'user_id' => $user->id,
+                'title' => $title,
+            ]);
+
+            return;
+        }
+
         $tokens = DeviceToken::where('user_id', $user->id)->pluck('token', 'id');
 
         if ($tokens->isEmpty()) {

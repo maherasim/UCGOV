@@ -31,7 +31,7 @@ class CheckSilentSecretaries extends Command
     {
         $now = Carbon::now();
 
-        if (! in_array($now->dayOfWeek, [1, 2, 3, 4, 5, 6], true) || $now->hour < 9 || $now->hour >= 17) {
+        if (! $push->isWithinBusinessHours()) {
             $this->info('Outside working hours — skipping.');
 
             return self::SUCCESS;

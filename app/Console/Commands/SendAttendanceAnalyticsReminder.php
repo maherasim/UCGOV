@@ -25,8 +25,8 @@ class SendAttendanceAnalyticsReminder extends Command
     {
         $today = Carbon::today();
 
-        if (! in_array($today->dayOfWeek, [1, 2, 3, 4, 5, 6], true)) {
-            $this->info('Not a working day — skipping.');
+        if (! $push->isWithinBusinessHours()) {
+            $this->info('Outside working hours — skipping.');
 
             return self::SUCCESS;
         }
