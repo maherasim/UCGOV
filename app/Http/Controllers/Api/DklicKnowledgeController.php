@@ -12,7 +12,12 @@ use App\Models\DklicBookmark;
 use App\Models\DklicDocument;
 use App\Models\DklicRead;
 use App\Models\User;
+use Anthropic\Client as AnthropicClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
 
 class DklicKnowledgeController extends Controller
 {
@@ -24,7 +29,9 @@ class DklicKnowledgeController extends Controller
     protected function baseQuery(User $user)
     {
         return DklicDocument::query()
-            ->whereNull('archived_at')
+            // Archived documents disappear from everyone's view except the
+            // uploader — who still needs to see their own to unarchive it.
+            ->where(fn ($q) => $q->whereNull('archived_at')->orWhere('uploaded_by', $user->id))
             ->whereIn('audience', ['All', $this->audienceTag($user)])
             ->withExists([
                 'bookmarks as bookmarked_exists' => fn ($q) => $q->where('user_id', $user->id),
@@ -187,6 +194,21 @@ class DklicKnowledgeController extends Controller
             ]);
         }
 
+        // Real LLM answer (RAG: only the matched documents' own text is given
+        // as context, and the model is instructed never to answer outside
+        // it) — falls back to the keyword-templated answer below if no API
+        // key is configured yet, or if the Claude call fails for any reason,
+        // so this endpoint never goes fully down.
+        if (config('services.anthropic.api_key')) {
+            try {
+                return response()->json($this->askClaude($query, $ranked->take(5)->pluck('doc')));
+            } catch (Throwable $e) {
+                Log::warning('[DklicKnowledgeController] Claude call failed, falling back to keyword answer.', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $topDocs = $ranked->take(3);
         $primary = $topDocs->first()['doc'];
 
@@ -239,6 +261,58 @@ class DklicKnowledgeController extends Controller
                 'category' => $x['doc']->category,
             ])->values(),
         ]);
+    }
+
+    /**
+     * Real answer, via Claude — RAG-style: only the matched documents' own
+     * text goes in as context, and the system prompt forbids answering from
+     * anything else, preserving the same "official documents only" guarantee
+     * the keyword-templated fallback above already promises. Response shape
+     * ({answer, sources}) matches the fallback exactly, so callers (web and
+     * mobile) don't know or care which path answered.
+     */
+    protected function askClaude(string $query, Collection $topDocs): array
+    {
+        $client = new AnthropicClient(apiKey: config('services.anthropic.api_key'));
+
+        $context = $topDocs->map(function (DklicDocument $doc) {
+            $body = $doc->content_text ?: $doc->description
+                ?: '(No extracted text is available for this document — only its title, subject, and category below are known.)';
+            $ref = $doc->reference_no ? " [{$doc->reference_no}]" : '';
+
+            return "### {$doc->title}{$ref} — {$doc->category}\n".Str::limit($body, 8000, '');
+        })->implode("\n\n");
+
+        $message = $client->messages->create(
+            model: 'claude-opus-5',
+            maxTokens: 1024,
+            system: "You are the LGCD AI Legal Intelligence Assistant for the Punjab Local Government platform. Answer questions ONLY using the official document excerpts provided below — never from general knowledge, assumptions, or anything outside them.\n\n"
+                ."Rules:\n"
+                ."- Base your answer strictly on the provided excerpts, and nothing else.\n"
+                ."- Always cite the source document's title and reference number (if any) for every claim.\n"
+                ."- If the excerpts don't contain enough information to answer, say so plainly and suggest the Super Administrator upload the relevant Rules, Gazette, or Circular — never guess or fill gaps from outside knowledge.\n"
+                .'- Be concise and direct — this is read by field officers on a mobile app, not a legal brief.',
+            messages: [
+                ['role' => 'user', 'content' => "DOCUMENT EXCERPTS:\n\n{$context}\n\nQUESTION: {$query}"],
+            ],
+        );
+
+        $answer = '';
+        foreach ($message->content as $block) {
+            if ($block->type === 'text') {
+                $answer .= $block->text;
+            }
+        }
+
+        return [
+            'answer' => $answer !== '' ? $answer : 'I was not able to generate an answer just now. Please try rephrasing your question.',
+            'sources' => $topDocs->map(fn (DklicDocument $doc) => [
+                'id' => $doc->id,
+                'title' => $doc->title,
+                'reference_no' => $doc->reference_no,
+                'category' => $doc->category,
+            ])->values(),
+        ];
     }
 
     protected function markRead(DklicDocument $document, User $user): void

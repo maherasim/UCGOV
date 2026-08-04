@@ -171,6 +171,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/dklic-documents/{document}/download', [DklicKnowledgeController::class, 'download']);
         Route::post('/dklic-documents/{document}/bookmark', [DklicKnowledgeController::class, 'toggleBookmark']);
         Route::post('/dklic-documents/{document}/acknowledge', [DklicKnowledgeController::class, 'acknowledge']);
+        Route::post('/dklic-documents', [DklicDocumentController::class, 'store']);
+        Route::patch('/dklic-documents/{document}/archive', [DklicDocumentController::class, 'archive']);
         Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
 
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForAdlg']);
@@ -220,6 +222,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/dklic-documents/{document}/download', [DklicKnowledgeController::class, 'download']);
         Route::post('/dklic-documents/{document}/bookmark', [DklicKnowledgeController::class, 'toggleBookmark']);
         Route::post('/dklic-documents/{document}/acknowledge', [DklicKnowledgeController::class, 'acknowledge']);
+        Route::post('/dklic-documents', [DklicDocumentController::class, 'store']);
+        Route::patch('/dklic-documents/{document}/archive', [DklicDocumentController::class, 'archive']);
         Route::post('/dklic-ai/ask', [DklicKnowledgeController::class, 'askAi']);
 
         Route::get('/lbr-cases', [LbrCaseController::class, 'indexForDdlg']);

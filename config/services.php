@@ -35,6 +35,13 @@ return [
         ],
     ],
 
+    // DKLIC AI Legal Intelligence Assistant — answers questions from
+    // admin-uploaded documents only (RAG: relevant document text is fed as
+    // context, model is instructed never to answer outside it).
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+
     // Mobile app push notifications (attendance reminders, etc.) — set once the
     // Firebase project exists. `credentials` is the absolute path to the service
     // account JSON downloaded from Firebase Console > Project Settings > Service Accounts.

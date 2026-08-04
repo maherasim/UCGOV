@@ -11,9 +11,13 @@ use App\Models\DklicAiQuery;
 use App\Models\DklicDocument;
 use App\Support\Concerns\StylesExcelSheets;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Smalot\PdfParser\Parser as PdfParser;
+use Throwable;
 
 class DklicDocumentController extends Controller
 {
@@ -62,7 +66,18 @@ class DklicDocumentController extends Controller
 
     public function store(StoreDklicDocumentRequest $request)
     {
-        $filePath = $request->file('file')->store('dklic-documents', 'public');
+        $file = $request->file('file');
+
+        // Auto-extract text from PDFs so the AI assistant can answer from the
+        // document's real content — content_text stays a free field the
+        // uploader can still fill in by hand (e.g. for scanned/image PDFs
+        // that have no extractable text) or override afterward.
+        $contentText = $request->input('content_text');
+        if (! $contentText && strtolower($file->getClientOriginalExtension()) === 'pdf') {
+            $contentText = $this->extractPdfText($file->getRealPath());
+        }
+
+        $filePath = $file->store('dklic-documents', 'public');
 
         $document = DklicDocument::create([
             'uploaded_by' => $request->user()->id,
@@ -70,7 +85,7 @@ class DklicDocumentController extends Controller
             'category' => $request->string('category')->toString(),
             'subject' => $request->string('subject')->toString(),
             'description' => $request->input('description'),
-            'content_text' => $request->input('content_text'),
+            'content_text' => $contentText,
             'reference_no' => $request->input('reference_no'),
             'issue_date' => $request->input('issue_date'),
             'effective_date' => $request->input('effective_date'),
@@ -94,8 +109,37 @@ class DklicDocumentController extends Controller
         return new DklicDocumentResource($document->load('uploader'));
     }
 
+    /**
+     * Best-effort text extraction. Scanned/image-only PDFs have no
+     * extractable text — that's fine, content_text just stays null and the
+     * AI assistant falls back to matching on title/subject/tags for it.
+     * Capped so one huge PDF can't blow up storage or later AI context cost.
+     */
+    protected function extractPdfText(string $path): ?string
+    {
+        try {
+            $text = (new PdfParser)->parseFile($path)->getText();
+            $text = trim(preg_replace('/\s+/', ' ', $text));
+
+            return $text !== '' ? Str::limit($text, 50000, '') : null;
+        } catch (Throwable $e) {
+            Log::warning('[DklicDocumentController] PDF text extraction failed.', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
     public function archive(Request $request, DklicDocument $document)
     {
+        // Super Admin manages the whole repository; ADLG/DDLG can only
+        // archive/unarchive documents they uploaded themselves.
+        if ($request->user()->role !== 'sa' && $document->uploaded_by !== $request->user()->id) {
+            abort(403, 'You can only archive documents you uploaded.');
+        }
+
         $document->update(['archived_at' => $document->archived_at ? null : now()]);
 
         AuditLog::create([

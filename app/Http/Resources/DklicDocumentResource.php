@@ -29,6 +29,7 @@ class DklicDocumentResource extends JsonResource
             'download_count' => $this->download_count,
             'view_count' => $this->view_count,
             'uploaded_by' => $this->uploader?->name,
+            'uploaded_by_id' => $this->uploaded_by,
             'published_at' => $this->published_at?->toIso8601String(),
             'archived' => $this->archived_at !== null,
             'archived_at' => $this->archived_at?->toIso8601String(),
