@@ -14,6 +14,10 @@ class AttendanceRecordResource extends JsonResource
             'id' => $this->id,
             'secretary' => $this->whenLoaded('secretary', fn () => $this->secretary->name),
             'union_council' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->name),
+            'tehsil' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') ? $this->unionCouncil->tehsil?->name : null),
+            'district' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') && $this->unionCouncil->tehsil?->relationLoaded('district')
+                ? $this->unionCouncil->tehsil->district?->name
+                : null),
             'attendance_date' => $this->attendance_date?->toDateString(),
             'check_in_time' => $this->check_in_time,
             'status' => $this->status,

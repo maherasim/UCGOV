@@ -11,6 +11,7 @@ import Districts from './pages/admin/Districts';
 import Tehsils from './pages/admin/Tehsils';
 import Adlgs from './pages/admin/Adlgs';
 import Ddlgs from './pages/admin/Ddlgs';
+import Dgs from './pages/admin/Dgs';
 import AdminUnionCouncils from './pages/admin/UnionCouncils';
 import AdminSecretaries from './pages/admin/Secretaries';
 import AuditLog from './pages/admin/AuditLog';
@@ -52,6 +53,12 @@ import DdlgDklic from './pages/ddlg/Dklic';
 import DdlgChatbot from './pages/ddlg/Chatbot';
 import DdlgProfile from './pages/ddlg/Profile';
 
+import DgLayout from './layouts/DgLayout';
+import DgDashboard from './pages/dg/Dashboard';
+import DgAttendance from './pages/dg/Attendance';
+import DgReports from './pages/dg/Reports';
+import DgProfile from './pages/dg/Profile';
+
 import SecLayout from './layouts/SecLayout';
 import SecDashboard from './pages/sec/Dashboard';
 import SecAttendance from './pages/sec/Attendance';
@@ -67,6 +74,7 @@ const ROLE_HOME = {
     sa: '/admin/dashboard',
     adlg: '/adlg/dashboard',
     ddlg: '/ddlg/dashboard',
+    dg: '/dg/dashboard',
     sec: '/sec/dashboard',
 };
 
@@ -128,6 +136,7 @@ export default function App() {
                 <Route path="union-councils" element={<AdminUnionCouncils />} />
                 <Route path="adlgs" element={<Adlgs />} />
                 <Route path="ddlgs" element={<Ddlgs />} />
+                <Route path="dgs" element={<Dgs />} />
                 <Route path="secretaries" element={<AdminSecretaries />} />
                 <Route path="audit-log" element={<AuditLog />} />
                 <Route path="inquiries" element={<AdminInquiries />} />
@@ -185,6 +194,21 @@ export default function App() {
                 <Route path="chatbot" element={<DdlgChatbot />} />
                 <Route path="inquiries" element={<DdlgInquiries />} />
                 <Route path="profile" element={<DdlgProfile />} />
+            </Route>
+
+            <Route
+                path="/dg"
+                element={
+                    <RequireRole role="dg">
+                        <DgLayout />
+                    </RequireRole>
+                }
+            >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<DgDashboard />} />
+                <Route path="attendance" element={<DgAttendance />} />
+                <Route path="reports" element={<DgReports />} />
+                <Route path="profile" element={<DgProfile />} />
             </Route>
 
             <Route

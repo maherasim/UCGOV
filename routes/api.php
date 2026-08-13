@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\ReportFieldDefinitionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DdlgController;
 use App\Http\Controllers\Api\DdlgDashboardController;
+use App\Http\Controllers\Api\DgController;
+use App\Http\Controllers\Api\DgDashboardController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DklicDocumentController;
 use App\Http\Controllers\Api\DklicKnowledgeController;
@@ -81,6 +83,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/ddlgs', [DdlgController::class, 'store']);
         Route::put('/ddlgs/{ddlg}', [DdlgController::class, 'update']);
         Route::patch('/ddlgs/{ddlg}/toggle-active', [DdlgController::class, 'toggleActive']);
+
+        Route::get('/dgs', [DgController::class, 'index']);
+        Route::post('/dgs', [DgController::class, 'store']);
+        Route::put('/dgs/{dg}', [DgController::class, 'update']);
+        Route::patch('/dgs/{dg}/toggle-active', [DgController::class, 'toggleActive']);
 
         Route::get('/union-councils', [UnionCouncilController::class, 'indexForAdmin']);
         Route::get('/union-councils-export', [UnionCouncilController::class, 'exportForAdmin']);
@@ -237,6 +244,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/death-cases/{deathCase}', [DeathCaseController::class, 'showForDdlg']);
         Route::post('/death-cases/{deathCase}/review', [DeathCaseController::class, 'reviewByDdlg']);
         Route::get('/death-cases/{deathCase}/notesheet', [DeathCaseController::class, 'notesheet']);
+    });
+
+    Route::middleware('role:dg')->prefix('dg')->group(function () {
+        Route::get('/dashboard', [DgDashboardController::class, 'index']);
+
+        Route::get('/union-councils', [UnionCouncilController::class, 'indexForDg']);
+
+        Route::get('/attendance', [AttendanceController::class, 'indexForDg']);
+        Route::get('/attendance/analytics-export', [AttendanceController::class, 'analyticsExportForDg']);
+        Route::get('/movement-log', [AttendanceController::class, 'movementIndexForDg']);
+        Route::get('/movement-log/export', [AttendanceController::class, 'movementExportForDg']);
+
+        Route::get('/reports', [DailyReportController::class, 'indexForDg']);
+        Route::get('/reports/export', [DailyReportController::class, 'exportForDg']);
     });
 
     Route::middleware('role:sec')->prefix('sec')->group(function () {

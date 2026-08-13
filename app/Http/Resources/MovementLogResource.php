@@ -13,6 +13,10 @@ class MovementLogResource extends JsonResource
             'id' => $this->id,
             'secretary' => $this->whenLoaded('secretary', fn () => $this->secretary->name),
             'union_council' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->name),
+            'tehsil' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') ? $this->unionCouncil->tehsil?->name : null),
+            'district' => $this->whenLoaded('unionCouncil', fn () => $this->unionCouncil->relationLoaded('tehsil') && $this->unionCouncil->tehsil?->relationLoaded('district')
+                ? $this->unionCouncil->tehsil->district?->name
+                : null),
             'reason' => $this->reason,
             'details' => $this->details,
             'distance_meters' => $this->distance_meters,

@@ -34,6 +34,11 @@ class UserResource extends JsonResource
                 'district' => $this->whenLoaded('ddlgProfile', fn () => $this->ddlgProfile->district?->name),
                 'grade' => $this->ddlgProfile->grade,
             ]),
+            'dg_profile' => $this->whenLoaded('dgProfile', fn () => [
+                'division_id' => $this->dgProfile->division_id,
+                'division' => $this->whenLoaded('dgProfile', fn () => $this->dgProfile->division?->name),
+                'grade' => $this->dgProfile->grade,
+            ]),
             'secretary_profile' => $this->whenLoaded('secretaryProfile', fn () => [
                 'union_council_id' => $this->secretaryProfile->union_council_id,
                 'union_council' => $this->secretaryProfile->unionCouncil?->name,

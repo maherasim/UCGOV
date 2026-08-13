@@ -74,6 +74,11 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasOne(DdlgProfile::class);
     }
 
+    public function dgProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DgProfile::class);
+    }
+
     public function secretaryProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(SecretaryProfile::class);

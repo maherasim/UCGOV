@@ -14,7 +14,7 @@ class AuthController extends Controller
     {
         $user = $request->authenticate();
 
-        return new UserResource($user->load(['adlgProfile.tehsil', 'ddlgProfile.district', 'secretaryProfile.unionCouncil', 'secretaryProfile.additionalCharges.unionCouncil']));
+        return new UserResource($user->load(['adlgProfile.tehsil', 'ddlgProfile.district', 'dgProfile.division', 'secretaryProfile.unionCouncil', 'secretaryProfile.additionalCharges.unionCouncil']));
     }
 
     public function logout(Request $request)
@@ -32,6 +32,7 @@ class AuthController extends Controller
         $user = $request->user()->load([
             'adlgProfile.tehsil',
             'ddlgProfile.district',
+            'dgProfile.division',
             'secretaryProfile.unionCouncil',
             'secretaryProfile.additionalCharges.unionCouncil',
         ]);

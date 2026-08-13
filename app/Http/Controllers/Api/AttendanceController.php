@@ -290,6 +290,32 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Read-only, whole-division view for the Director General — every UC across every
+     * district/tehsil in their division.
+     */
+    public function indexForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $base = AttendanceRecord::whereHas('unionCouncil.tehsil.district', fn ($q) => $q->where('division_id', $divisionId));
+
+        $query = (clone $base)->with(['secretary', 'unionCouncil.tehsil.district']);
+        $this->applyAttendanceFilters($request, $query);
+
+        $records = $query->latest('attendance_date')->take(500)->get();
+        $today = Carbon::today()->toDateString();
+
+        return AttendanceRecordResource::collection($records)->additional([
+            'meta' => [
+                'total' => (clone $base)->count(),
+                'today' => (clone $base)->where('attendance_date', $today)->count(),
+                'union_councils' => UnionCouncil::whereHas('tehsil.district', fn ($q) => $q->where('division_id', $divisionId))->count(),
+                'filtered' => $records->count(),
+            ],
+        ]);
+    }
+
     protected function applyAttendanceFilters(Request $request, $query): void
     {
         if ($request->filled('union_council_id')) {
@@ -325,6 +351,22 @@ class AttendanceController extends Controller
 
         $logs = MovementLog::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
             ->with(['secretary', 'unionCouncil'])
+            ->latest('occurred_at')
+            ->take(200)
+            ->get();
+
+        return MovementLogResource::collection($logs);
+    }
+
+    /**
+     * Read-only, whole-division view for the Director General.
+     */
+    public function movementIndexForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $logs = MovementLog::whereHas('unionCouncil.tehsil.district', fn ($q) => $q->where('division_id', $divisionId))
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->latest('occurred_at')
             ->take(200)
             ->get();
@@ -532,6 +574,44 @@ class AttendanceController extends Controller
         $to = $request->filled('to') ? $request->date('to') : Carbon::today();
 
         $ucsQuery = UnionCouncil::whereHas('tehsil', fn ($q) => $q->where('district_id', $districtId))->where('active', true);
+        if ($request->filled('union_council_id')) {
+            $ucsQuery->where('id', $request->integer('union_council_id'));
+        }
+        $ucs = $ucsQuery->orderBy('uc_no')->get();
+
+        $records = AttendanceRecord::whereIn('union_council_id', $ucs->pluck('id'))
+            ->whereBetween('attendance_date', [$from->toDateString(), $to->toDateString()])
+            ->with(['secretary', 'unionCouncil'])
+            ->orderBy('attendance_date')
+            ->orderBy('check_in_time')
+            ->get();
+
+        $recordsByUc = $records->groupBy('union_council_id');
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Attendance Report');
+
+        $this->buildAttendanceSummarySheet($spreadsheet->getActiveSheet(), $ucs, $recordsByUc, $from, $to, $request);
+        $this->buildAttendanceDetailSheet($spreadsheet->createSheet(), $records);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $filename = 'Attendance_'.$from->toDateString().'_to_'.$to->toDateString().'.xlsx';
+
+        return $this->xlDownload($spreadsheet, $filename);
+    }
+
+    /**
+     * Same styled workbook as analyticsExportForAdlg(), scoped to every UC across every
+     * district/tehsil in the Director General's division.
+     */
+    public function analyticsExportForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $from = $request->filled('from') ? $request->date('from') : Carbon::today();
+        $to = $request->filled('to') ? $request->date('to') : Carbon::today();
+
+        $ucsQuery = UnionCouncil::whereHas('tehsil.district', fn ($q) => $q->where('division_id', $divisionId))->where('active', true);
         if ($request->filled('union_council_id')) {
             $ucsQuery->where('id', $request->integer('union_council_id'));
         }
@@ -770,6 +850,31 @@ class AttendanceController extends Controller
         $districtId = $request->user()->ddlgProfile->district_id;
 
         $logs = MovementLog::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['secretary', 'unionCouncil.tehsil'])
+            ->latest('occurred_at')
+            ->get();
+
+        $logsBySecretary = $logs->groupBy('secretary_id');
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Movement Registry');
+
+        $this->buildMovementSummarySheet($spreadsheet->getActiveSheet(), $logsBySecretary);
+        $this->buildMovementDetailSheet($spreadsheet->createSheet(), $logs);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Movement_Registry_'.now()->toDateString().'.xlsx');
+    }
+
+    /**
+     * Same styled workbook as movementExportForAdlg(), scoped to the Director General's
+     * whole division.
+     */
+    public function movementExportForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $logs = MovementLog::whereHas('unionCouncil.tehsil.district', fn ($q) => $q->where('division_id', $divisionId))
             ->with(['secretary', 'unionCouncil.tehsil'])
             ->latest('occurred_at')
             ->get();

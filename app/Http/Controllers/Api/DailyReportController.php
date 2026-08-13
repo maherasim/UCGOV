@@ -133,6 +133,23 @@ class DailyReportController extends Controller
         return DailyReportResource::collection($reports);
     }
 
+    /**
+     * Read-only, whole-division view for the Director General — every report across
+     * every district/tehsil/UC in their division.
+     */
+    public function indexForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $reports = DailyReport::whereHas('unionCouncil.tehsil.district', fn ($q) => $q->where('division_id', $divisionId))
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
+            ->latest('report_date')
+            ->take(200)
+            ->get();
+
+        return DailyReportResource::collection($reports);
+    }
+
     public function markReviewed(Request $request, DailyReport $report)
     {
         $tehsilId = $request->user()->adlgProfile->tehsil_id;
@@ -176,6 +193,28 @@ class DailyReportController extends Controller
         $districtId = $request->user()->ddlgProfile->district_id;
 
         $reports = DailyReport::whereHas('unionCouncil.tehsil', fn ($q) => $q->where('district_id', $districtId))
+            ->with(['secretary', 'unionCouncil.tehsil.district'])
+            ->orderByDesc('report_date')
+            ->get();
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()->setCreator('Union Council Management System')->setTitle('Daily Reports');
+
+        $this->buildReportsSummarySheet($spreadsheet->getActiveSheet(), $reports);
+        $this->buildReportsDetailSheet($spreadsheet->createSheet(), $reports);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->xlDownload($spreadsheet, 'Daily_Reports_'.now()->toDateString().'.xlsx');
+    }
+
+    /**
+     * Same styled workbook as export(), scoped to the Director General's whole division.
+     */
+    public function exportForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $reports = DailyReport::whereHas('unionCouncil.tehsil.district', fn ($q) => $q->where('division_id', $divisionId))
             ->with(['secretary', 'unionCouncil.tehsil.district'])
             ->orderByDesc('report_date')
             ->get();

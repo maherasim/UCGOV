@@ -2,19 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     Squares2X2Icon,
-    GlobeAsiaAustraliaIcon,
-    MapPinIcon,
-    BuildingLibraryIcon,
-    HomeModernIcon,
-    UserGroupIcon,
-    UsersIcon,
+    FingerPrintIcon,
     ClipboardDocumentListIcon,
-    DocumentTextIcon,
-    NewspaperIcon,
-    IdentificationIcon,
-    ShieldCheckIcon,
-    StarIcon,
-    BookOpenIcon,
     Cog6ToothIcon,
     ChevronDownIcon,
     ArrowRightStartOnRectangleIcon,
@@ -30,31 +19,10 @@ const NAV_GROUPS = [
         items: [{ to: 'dashboard', label: 'Dashboard', icon: Squares2X2Icon }],
     },
     {
-        label: 'Geography',
+        label: 'Oversight',
         items: [
-            { to: 'divisions', label: 'Divisions', icon: GlobeAsiaAustraliaIcon },
-            { to: 'districts', label: 'Districts', icon: MapPinIcon },
-            { to: 'tehsils', label: 'Tehsils', icon: BuildingLibraryIcon },
-            { to: 'union-councils', label: 'Union Councils', icon: HomeModernIcon },
-        ],
-    },
-    {
-        label: 'Administration',
-        items: [
-            { to: 'dgs', label: 'DGs', icon: StarIcon },
-            { to: 'ddlgs', label: 'DDLGs', icon: ShieldCheckIcon },
-            { to: 'adlgs', label: 'ADLGs', icon: UserGroupIcon },
-            { to: 'secretaries', label: 'Secretaries', icon: UsersIcon },
-            { to: 'audit-log', label: 'Audit Log', icon: ClipboardDocumentListIcon },
-        ],
-    },
-    {
-        label: 'Communications',
-        items: [
-            { to: 'inquiries', label: 'Inquiry Requests', icon: DocumentTextIcon },
-            { to: 'newsletters', label: 'Newsletters', icon: NewspaperIcon },
-            { to: 'dklic', label: 'DKLIC', icon: BookOpenIcon },
-            { to: 'profiles', label: 'Profiles', icon: IdentificationIcon },
+            { to: 'attendance', label: 'Attendance', icon: FingerPrintIcon },
+            { to: 'reports', label: 'Daily Reports', icon: ClipboardDocumentListIcon },
         ],
     },
     {
@@ -93,7 +61,9 @@ function UserMenu() {
                 <Avatar user={user} size="sm" />
                 <div className="text-left">
                     <div className="text-sm font-semibold leading-tight text-ink">{user?.name}</div>
-                    <div className="text-xs leading-tight text-ink-muted">Super Administrator</div>
+                    <div className="text-xs leading-tight text-ink-muted">
+                        {user?.dg_profile?.division ? `DG · ${user.dg_profile.division}` : 'Director General'}
+                    </div>
                 </div>
                 <ChevronDownIcon className="h-4 w-4 text-ink-faint" />
             </button>
@@ -119,7 +89,7 @@ function UserMenu() {
     );
 }
 
-export default function AdminLayout() {
+export default function DgLayout() {
     const location = useLocation();
     const current = ALL_ITEMS.find((i) => location.pathname.endsWith(i.to));
 
@@ -131,7 +101,7 @@ export default function AdminLayout() {
                         <img src={`${APP_BASE_PATH}/logo.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
-                        <div className="text-sm font-bold leading-tight">UC Governance</div>
+                        <div className="text-sm font-bold leading-snug">Personal Assistant to Director General</div>
                     </div>
                 </div>
 
@@ -172,7 +142,7 @@ export default function AdminLayout() {
                 <header className="flex flex-shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-3.5">
                     <div>
                         <h1 className="text-base font-bold text-ink">{current?.label || 'Dashboard'}</h1>
-                        <p className="text-xs text-ink-muted">Union Council Governance &amp; Administration</p>
+                        <p className="text-xs text-ink-muted">Division Oversight &amp; Administration</p>
                     </div>
                     <div className="flex items-center gap-4">
                         <NotificationBell />

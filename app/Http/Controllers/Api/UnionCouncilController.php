@@ -45,6 +45,22 @@ class UnionCouncilController extends Controller
     }
 
     /**
+     * Read-only, whole-division view for the Director General — used for the UC filter
+     * picker on the Attendance page.
+     */
+    public function indexForDg(Request $request)
+    {
+        $divisionId = $request->user()->dgProfile->division_id;
+
+        $ucs = UnionCouncil::whereHas('tehsil.district', fn ($q) => $q->where('division_id', $divisionId))
+            ->with(['tehsil.district', 'secretaryProfile.user'])
+            ->orderBy('name')
+            ->get();
+
+        return UnionCouncilResource::collection($ucs);
+    }
+
+    /**
      * Read-only, Punjab-wide view for Super Admin — every UC across every tehsil/district,
      * A–Z. Editing stays exclusive to the owning ADLG (see index()/update() above).
      *

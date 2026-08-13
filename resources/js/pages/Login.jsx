@@ -8,6 +8,7 @@ const ROLE_HOME = {
     sa: '/admin/dashboard',
     adlg: '/adlg/dashboard',
     ddlg: '/ddlg/dashboard',
+    dg: '/dg/dashboard',
     sec: '/sec/dashboard',
 };
 
