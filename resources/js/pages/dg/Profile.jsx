@@ -72,7 +72,7 @@ export default function Profile() {
                     <AvatarUpload size="lg" />
                     <div>
                         <div className="text-base font-bold text-ink">{user?.name}</div>
-                        <div className="text-sm text-ink-muted">Director General</div>
+                        <div className="text-sm text-ink-muted">Director Local Government</div>
                     </div>
                 </div>
                 <dl className="mt-4 divide-y divide-border border-t border-border text-sm">

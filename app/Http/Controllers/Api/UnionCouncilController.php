@@ -45,7 +45,7 @@ class UnionCouncilController extends Controller
     }
 
     /**
-     * Read-only, whole-division view for the Director General — used for the UC filter
+     * Read-only, whole-division view for the Director Local Government — used for the UC filter
      * picker on the Attendance page.
      */
     public function indexForDg(Request $request)

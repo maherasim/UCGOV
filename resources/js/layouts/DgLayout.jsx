@@ -62,7 +62,7 @@ function UserMenu() {
                 <div className="text-left">
                     <div className="text-sm font-semibold leading-tight text-ink">{user?.name}</div>
                     <div className="text-xs leading-tight text-ink-muted">
-                        {user?.dg_profile?.division ? `DG · ${user.dg_profile.division}` : 'Director General'}
+                        {user?.dg_profile?.division ? `DG · ${user.dg_profile.division}` : 'Director Local Government'}
                     </div>
                 </div>
                 <ChevronDownIcon className="h-4 w-4 text-ink-faint" />
@@ -101,7 +101,7 @@ export default function DgLayout() {
                         <img src={`${APP_BASE_PATH}/logo.png`} alt="Department Logo" className="h-full w-full object-contain" />
                     </div>
                     <div>
-                        <div className="text-sm font-bold leading-snug">Personal Assistant to Director General</div>
+                        <div className="text-sm font-bold leading-snug">Personal Assistant to Director Local Government</div>
                     </div>
                 </div>
 

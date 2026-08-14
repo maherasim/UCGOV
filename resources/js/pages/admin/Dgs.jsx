@@ -80,7 +80,7 @@ function DgFormModal({ open, onClose, dg }) {
     const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
     return (
-        <Modal open={open} onClose={close} title={isEdit ? 'Edit DG' : 'Create DG'} subtitle="Director General">
+        <Modal open={open} onClose={close} title={isEdit ? 'Edit DG' : 'Create DG'} subtitle="Director Local Government">
             <form
                 onSubmit={(e) => {
                     e.preventDefault();

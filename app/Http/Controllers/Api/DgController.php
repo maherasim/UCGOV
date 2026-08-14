@@ -63,7 +63,7 @@ class DgController extends Controller
                 'to_user_id' => $user->id,
                 'from_user_id' => $request->user()->id,
                 'type' => 'ACCOUNT_CREATED',
-                'message' => "Your Director General account has been created. Username: \"{$user->username}\" — {$division->name}.",
+                'message' => "Your Director Local Government account has been created. Username: \"{$user->username}\" — {$division->name}.",
             ]);
 
             return $user;

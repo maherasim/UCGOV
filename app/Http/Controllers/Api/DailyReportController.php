@@ -134,7 +134,7 @@ class DailyReportController extends Controller
     }
 
     /**
-     * Read-only, whole-division view for the Director General — every report across
+     * Read-only, whole-division view for the Director Local Government — every report across
      * every district/tehsil/UC in their division.
      */
     public function indexForDg(Request $request)
@@ -208,7 +208,7 @@ class DailyReportController extends Controller
     }
 
     /**
-     * Same styled workbook as export(), scoped to the Director General's whole division.
+     * Same styled workbook as export(), scoped to the Director Local Government's whole division.
      */
     public function exportForDg(Request $request)
     {

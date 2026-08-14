@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
- * Division-wide overview for the Director General — read-only, Attendance/Reports
+ * Division-wide overview for the Director Local Government — read-only, Attendance/Reports
  * only (no case data; DG has no access to the Divorce/Khula registry).
  */
 class DgDashboardController extends Controller

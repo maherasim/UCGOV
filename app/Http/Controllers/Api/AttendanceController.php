@@ -291,7 +291,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Read-only, whole-division view for the Director General — every UC across every
+     * Read-only, whole-division view for the Director Local Government — every UC across every
      * district/tehsil in their division.
      */
     public function indexForDg(Request $request)
@@ -359,7 +359,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Read-only, whole-division view for the Director General.
+     * Read-only, whole-division view for the Director Local Government.
      */
     public function movementIndexForDg(Request $request)
     {
@@ -602,7 +602,7 @@ class AttendanceController extends Controller
 
     /**
      * Same styled workbook as analyticsExportForAdlg(), scoped to every UC across every
-     * district/tehsil in the Director General's division.
+     * district/tehsil in the Director Local Government's division.
      */
     public function analyticsExportForDg(Request $request)
     {
@@ -867,7 +867,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Same styled workbook as movementExportForAdlg(), scoped to the Director General's
+     * Same styled workbook as movementExportForAdlg(), scoped to the Director Local Government's
      * whole division.
      */
     public function movementExportForDg(Request $request)
